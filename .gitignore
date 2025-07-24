@@ -1,0 +1,28 @@
+# ========== NODE & COMMON ==========
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ========== ENV ==========
+.env
+.env.local
+.env.*.local
+
+# ========== MAC/WINDOWS ==========
+.DS_Store
+Thumbs.db
+
+# ========== EDITOR ==========
+.vscode/
+.idea/
+
+# ========== NEXT.JS (Frontend) ==========
+FE/.next/
+FE/out/
+FE/dist/
+
+# ========== NESTJS (Backend) ==========
+BE/dist/
+BE/.cache/

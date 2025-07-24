@@ -1,0 +1,87 @@
+.chatForm {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  gap: 8px;
+}
+
+/* Thanh nút hành động trên cùng */
+.actions {
+  display: flex;
+  gap: 10px;
+
+  button {
+    font-size: 18px;
+    color: #4b5563;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: #f3f4f6;
+    }
+  }
+}
+
+/* Form chứa input */
+.chatInputForm {
+  width: 100%;
+}
+
+.inputGroup {
+  width: 100%;
+}
+
+.inputWrapper {
+  margin-bottom: 0;
+
+  .ant-form-item-control {
+    line-height: normal;
+  }
+}
+
+/* Textarea full width */
+.input {
+  width: 100%;
+
+  &:focus {
+    border: none;
+  }
+}
+.inputGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .inputWrapper {
+    flex: 1;
+    margin-bottom: 0;
+
+    .ant-form-item-control {
+      line-height: normal;
+    }
+  }
+}
+
+.sendButton {
+  font-size: 22px;
+  color: #0ea5e9;
+  padding: 6px 10px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background-color: #e0f2fe;
+  }
+
+  &:disabled {
+    color: #9ca3af;
+    cursor: not-allowed;
+    background-color: transparent;
+  }
+}

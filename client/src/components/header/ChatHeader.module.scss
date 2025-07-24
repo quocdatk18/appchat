@@ -1,0 +1,55 @@
+.chatHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  background-color: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 20px;
+
+  .left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+
+      .name {
+        font-weight: 600;
+        font-size: 16px;
+        color: #111827;
+        line-height: 1.2;
+        margin-bottom: 4px; // 👈 Khoảng cách dưới name (giữa name & status)
+      }
+
+      .status {
+        font-size: 13px;
+        color: #6b7280;
+      }
+    }
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    button {
+      border: none;
+      background-color: #f3f4f6;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        background-color: #e5e7eb;
+      }
+    }
+  }
+}

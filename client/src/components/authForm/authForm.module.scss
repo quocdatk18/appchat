@@ -1,0 +1,146 @@
+/* login.module.scss */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@200;300;400;500;600;700&display=swap');
+
+.loginContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 0 10px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url('./hero-bg.jpg') center/cover no-repeat #333;
+    z-index: -1;
+    pointer-events: none;
+  }
+}
+
+.loginCard {
+  width: 400px;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+
+  .formLogin {
+    .inputField {
+      position: relative;
+      // border-bottom: 1px solid #ccc;
+      margin: 15px 0;
+
+      .input {
+        width: 100%;
+        height: 40px;
+        background: transparent;
+        border: none;
+        outline: none;
+        font-size: 16px;
+        color: #fff;
+        border-bottom: 1px solid #ccc;
+        &::placeholder {
+          position: absolute;
+          top: 50%;
+          left: 0;
+          transform: translateY(-50%);
+          color: #fff;
+          font-size: 16px;
+          pointer-events: none;
+          transition: 0.15s ease;
+        }
+        &:focus::placeholder {
+          font-size: 0.8rem;
+          top: 15px;
+          transform: translateY(-120%);
+        }
+      }
+    }
+
+    .forget {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 25px 0 35px 0;
+      color: #fff;
+    }
+    .button {
+      background: #fff;
+      color: #000;
+      font-weight: 600;
+      border: none;
+      padding: 12px 20px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 16px;
+      border: 2px solid transparent;
+      transition: 0.3s ease;
+      width: 100%;
+      height: 100%;
+      :hover {
+        color: #fff;
+        border-color: #fff;
+        background: rgba(255, 255, 255, 0.15);
+      }
+    }
+    .register {
+      text-align: center;
+      margin-top: 30px;
+      color: #fff;
+    }
+  }
+}
+
+.input :global(.ant-input::placeholder) {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  color: #fff;
+  font-size: 16px;
+  pointer-events: none;
+  transition: 0.15s ease;
+}
+.input :global(.ant-input:focus::placeholder) {
+  font-size: 0.8rem;
+  top: 15px;
+  transform: translateY(-120%);
+}
+.input :global(.ant-input-prefix) {
+  margin-right: 20px; // hoặc 12px tùy bạn
+}
+.passwordInput :global(.ant-input-password-icon) {
+  background-color: #fff;
+  font-size: 20px;
+  transition: color 0.3s;
+  border-radius: 50%;
+
+  &:hover {
+    color: #1890ff; // đổi màu khi hover
+  }
+}
+
+.genderSelect {
+  :global(.ant-select-selector) {
+    background: transparent;
+    border: none;
+    border-bottom: 1.5px solid #fff;
+    border-radius: 0;
+    min-height: 40px;
+    font-size: 16px;
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none !important;
+    transition: border-color 0.3s;
+  }
+  :global(.ant-select-selection-placeholder) {
+    color: #222 !important;
+    font-size: 16px;
+    padding-left: 0;
+  }
+}

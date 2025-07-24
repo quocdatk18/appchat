@@ -1,0 +1,68 @@
+.messageList {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --- Tin nhắn bên trái (người khác) và bên phải (mình) --- */
+.messageWrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+
+  &.me {
+    flex-direction: row-reverse;
+
+    .message {
+      background-color: #0ea5e9;
+      color: white;
+      border-top-right-radius: 0;
+    }
+  }
+
+  &.other {
+    .message {
+      background-color: #e5e7eb;
+      color: #111827;
+      border-top-left-radius: 0;
+    }
+  }
+}
+
+/* --- Avatar --- */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+/* --- Bong bóng tin nhắn --- */
+.message {
+  max-width: 60%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* --- Nội dung và thời gian --- */
+.content {
+  white-space: pre-line; // giữ xuống dòng
+}
+
+.time {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+  align-self: flex-end;
+}
