@@ -38,6 +38,9 @@ export interface Message {
   content: string;
   createdAt: string;
   sender?: MiniUser; // dùng cho chat nhóm hoặc FE cần
+  mediaUrl?: string; // đường dẫn file
+  mimetype?: string; // loại file thực tế (image/png, video/mp4, ...)
+  originalName?: string; // tên file gốc
 }
 
 export interface MessageState {

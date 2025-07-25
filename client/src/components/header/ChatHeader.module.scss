@@ -1,3 +1,4 @@
+// ===== Chat Header Layout =====
 .chatHeader {
   display: flex;
   justify-content: space-between;
@@ -7,16 +8,15 @@
   border-bottom: 1px solid #e5e7eb;
   padding: 0 20px;
 
+  // ===== Left Info (Avatar + Name + Status) =====
   .left {
     display: flex;
     align-items: center;
     gap: 12px;
-
     .info {
       display: flex;
       flex-direction: column;
       justify-content: center;
-
       .name {
         font-weight: 600;
         font-size: 16px;
@@ -24,7 +24,6 @@
         line-height: 1.2;
         margin-bottom: 4px; // 👈 Khoảng cách dưới name (giữa name & status)
       }
-
       .status {
         font-size: 13px;
         color: #6b7280;
@@ -32,11 +31,11 @@
     }
   }
 
+  // ===== Right Action Buttons =====
   .right {
     display: flex;
     align-items: center;
     gap: 8px;
-
     button {
       border: none;
       background-color: #f3f4f6;
@@ -46,7 +45,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-
       &:hover {
         background-color: #e5e7eb;
       }

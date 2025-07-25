@@ -61,4 +61,8 @@ export class UserService {
   async searchUserByEmail(email: string) {
     return this.userModel.findOne({ email }, 'id username avatar email');
   }
+
+  async updateUser(userId: string, update: Partial<User>) {
+    return this.userModel.findByIdAndUpdate(userId, update, { new: true });
+  }
 }

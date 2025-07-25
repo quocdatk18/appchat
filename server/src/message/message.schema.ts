@@ -15,11 +15,21 @@ export class Message {
   @Prop({ type: String, default: '' })
   content: string;
 
-  @Prop({ type: String, enum: ['text', 'image', 'file', 'video'], default: 'text' })
+  @Prop({
+    type: String,
+    enum: ['text', 'image', 'file', 'video'],
+    default: 'text',
+  })
   type: string; // Hỗ trợ media
 
-  @Prop({ type: String, default: '' }) 
+  @Prop({ type: String, default: '' })
   mediaUrl: string; // Link file/media nếu có
+
+  @Prop({ type: String, default: '' })
+  mimetype: string; // Loại file thực tế (image/png, video/mp4, ...)
+
+  @Prop({ type: String, default: '' })
+  originalName: string; // Tên file gốc
 
   @Prop({ type: Boolean, default: false })
   isDeleted: boolean; // Hỗ trợ thu hồi/xóa

@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '@/lib/store';
-import styles from './MessageList.module.scss';
-import { fetchMessages, addMessage } from '@/lib/store/reducer/message/MessageSlice';
 import socket from '@/api/socket';
-
+import { AppDispatch, RootState } from '@/lib/store';
+import { fetchMessages } from '@/lib/store/reducer/message/MessageSlice';
 import { Conversation, UserType } from '@/types';
+import { LoadingOutlined } from '@ant-design/icons';
+import { Image, Skeleton, Spin } from 'antd';
+import { useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import styles from './MessageList.module.scss';
 
 export interface ConversationState {
   conversations: Conversation[];
@@ -51,11 +52,24 @@ export default function MessageList() {
   if (!selectedConversation) return;
 
   if (loading) {
-    return <div className={styles.messageList}>Đang tải tin nhắn...</div>;
+    return (
+      <div className={styles.messageList}>
+        <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+      </div>
+    );
   }
 
   if (error) {
-    return <div className={styles.messageList}>❌ Lỗi: {error}</div>;
+    return (
+      <div className={styles.messageList}>
+        <Skeleton active avatar paragraph={{ rows: 4 }} />
+      </div>
+    );
+  }
+
+  function getFileExtIcon(name = '') {
+    const ext = name.split('.').pop()?.toUpperCase() || '';
+    return ext || 'FILE';
   }
 
   return (
@@ -65,7 +79,8 @@ export default function MessageList() {
         const avatarUrl = isMe
           ? currentUser.avatar
           : msg.sender?.avatar || conversation?.receiver?.avatar;
-
+        {
+        }
         return (
           <div
             key={msg._id}
@@ -82,7 +97,47 @@ export default function MessageList() {
               />
             )}
             <div className={styles.message}>
-              <div className={styles.content}>{msg.content}</div>
+              {msg.mediaUrl &&
+              msg.mimetype &&
+              !msg.mimetype.startsWith('image/') &&
+              !msg.mimetype.startsWith('video/') ? (
+                <div className={styles.fileBox}>
+                  <div className={styles.fileInfo}>
+                    <div className={styles.fileIcon}>{getFileExtIcon(msg.originalName)}</div>
+                    <div className={styles.fileMeta}>
+                      <div className={styles.fileName}>{msg.originalName || 'Tải file'}</div>
+                    </div>
+                  </div>
+                  <a
+                    href={msg.mediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.downloadBtn}
+                  >
+                    ⬇
+                  </a>
+                </div>
+              ) : msg.mediaUrl && msg.mimetype && msg.mimetype.startsWith('image/') ? (
+                <Image
+                  src={msg.mediaUrl}
+                  preview={{ mask: null }}
+                  style={{ maxWidth: 220, borderRadius: 8, marginBottom: 4, display: 'block' }}
+                />
+              ) : msg.mediaUrl && msg.mimetype && msg.mimetype.startsWith('video/') ? (
+                <video
+                  src={msg.mediaUrl}
+                  controls
+                  style={{
+                    maxWidth: 220,
+                    borderRadius: 8,
+                    marginBottom: 4,
+                    display: 'block',
+                    background: '#000',
+                  }}
+                />
+              ) : (
+                <div className={styles.content}>{msg.content}</div>
+              )}
               <div className={styles.time}>
                 {new Date(msg.createdAt).toLocaleTimeString([], {
                   hour: '2-digit',

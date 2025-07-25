@@ -93,6 +93,8 @@ export class MessageGateway
       content?: string;
       type?: 'text' | 'image' | 'file' | 'video';
       mediaUrl?: string;
+      mimetype?: string;
+      originalName?: string;
     },
   ) {
     const {
@@ -101,6 +103,8 @@ export class MessageGateway
       content,
       type = 'text',
       mediaUrl = '',
+      mimetype = '',
+      originalName = '',
     } = payload;
 
     if (!content && !mediaUrl) return; // Không gửi nếu không có nội dung hoặc media
@@ -121,7 +125,7 @@ export class MessageGateway
       const newMessage = await this.messageService.createWithConversationId(
         fromUserId,
         conversationId,
-        { content, type, mediaUrl },
+        { content, type, mediaUrl, mimetype, originalName },
       );
 
       const fullPayload = {

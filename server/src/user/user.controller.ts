@@ -7,11 +7,13 @@ import {
   NotFoundException,
   Patch,
   Body,
+  Req,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from './user.schema';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('user')
 export class UserController {
@@ -69,5 +71,12 @@ export class UserController {
     @Body('isOnline') isOnline: boolean,
   ) {
     return this.userService.updateStatus(userId, { isOnline });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
+    const userId = req.user._id;
+    return this.userService.updateUser(userId, updateUserDto);
   }
 }

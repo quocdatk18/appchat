@@ -13,6 +13,7 @@ import { Carousel } from 'antd';
 import styles from './ChatLayout.module.scss';
 import socket from '@/api/socket';
 import { checkAuth, loadUserFromStorage } from '@/lib/store/reducer/user/userSlice';
+import OnboardingSlider from '@/components/carousel/OnboardingSlider';
 
 export default function Home() {
   const dispatch = useDispatch<AppDispatch>();
@@ -22,6 +23,11 @@ export default function Home() {
   );
 
   const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
+  const selectedConversation = useSelector(
+    (state: RootState) => state.conversationReducer.selectedConversation
+  );
+  console.log('selectedConversation', selectedConversation);
+  console.log('selectedUser', selectedUser);
   useEffect(() => {
     dispatch(loadUserFromStorage());
     dispatch(checkAuth());
@@ -45,15 +51,23 @@ export default function Home() {
         <Sidebar />
       </div>
       <div className={styles.chatPanel}>
-        <div className={styles.header}>
-          <ChatHeader />
-        </div>
-        <div className={styles.content}>
-          <MessageList />
-        </div>
-        <div className={styles.input}>
-          <MessageInput />
-        </div>
+        {!selectedConversation && !selectedUser ? (
+          <div className={styles.sliderWrapper}>
+            <OnboardingSlider />
+          </div>
+        ) : (
+          <>
+            <div className={styles.header}>
+              <ChatHeader />
+            </div>
+            <div className={styles.content}>
+              <MessageList />
+            </div>
+            <div className={styles.input}>
+              <MessageInput />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

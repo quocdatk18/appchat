@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ConversationModule } from './conversations/conversation.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ConversationModule } from './conversations/conversation.module';
     UserModule,
     MessageModule,
     ConversationModule,
+    UploadModule,
   ],
 })
 export class AppModule {}

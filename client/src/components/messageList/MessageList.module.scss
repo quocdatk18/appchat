@@ -1,3 +1,4 @@
+// ===== Message List Layout =====
 .messageList {
   flex: 1 1 0;
   min-height: 0;
@@ -5,64 +6,135 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  margin: 20px 10px;
   gap: 12px;
-}
 
-/* --- Tin nhắn bên trái (người khác) và bên phải (mình) --- */
-.messageWrapper {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-
-  &.me {
-    flex-direction: row-reverse;
-
+  // ===== Message Wrapper (Me/Other) =====
+  .messageWrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    &.me {
+      flex-direction: row-reverse;
+      margin-right: 10px;
+      .message {
+        background-color: #e5f1ff;
+        border-top-right-radius: 0;
+      }
+    }
+    &.other {
+      margin-left: 18px;
+      .message {
+        background-color: #ffffff;
+        border-top-left-radius: 0;
+      }
+    }
+    // ===== Avatar =====
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      cursor: pointer;
+    }
+    // ===== Message Bubble =====
     .message {
-      background-color: #0ea5e9;
-      color: white;
-      border-top-right-radius: 0;
+      max-width: 60%;
+      min-width: 10%;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      word-wrap: break-word;
+      font-size: 14px;
+      line-height: 1.4;
+      border-radius: 20px;
+      .message img {
+        max-width: 220px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        display: block;
+      }
+      // ===== File Box (Attachment) =====
+      .fileBox {
+        background: #f5f7fa;
+        border-radius: 12px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 220px;
+        max-width: 320px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        .fileInfo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex: 1;
+          .fileIcon {
+            width: 40px;
+            height: 40px;
+            background: #e5eaf3;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            color: #1890ff;
+          }
+          .fileMeta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            .fileName {
+              font-weight: 500;
+              color: #222;
+              font-size: 15px;
+              word-break: break-all;
+            }
+          }
+        }
+        .downloadBtn {
+          font-size: 20px;
+          color: #1890ff;
+          margin-left: 8px;
+          text-decoration: none;
+          transition: color 0.2s;
+          &:hover {
+            color: #0056b3;
+          }
+        }
+      }
+      // ===== Nội dung và thời gian =====
+      .content {
+        white-space: pre-line;
+        padding: 10px;
+      }
+      .time {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 4px;
+        align-self: flex-end;
+      }
+      img,
+      .ant-image-img {
+        transition:
+          box-shadow 0.2s,
+          transform 0.2s,
+          border 0.2s;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border: 2px solid transparent;
+        cursor: pointer;
+      }
+      img:hover,
+      .ant-image-img:hover {
+        box-shadow: 0 4px 24px rgba(24, 144, 255, 0.18);
+        border: 2px solid #1890ff;
+        transform: scale(1.03);
+        z-index: 2;
+      }
     }
   }
-
-  &.other {
-    .message {
-      background-color: #e5e7eb;
-      color: #111827;
-      border-top-left-radius: 0;
-    }
-  }
-}
-
-/* --- Avatar --- */
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  cursor: pointer;
-}
-
-/* --- Bong bóng tin nhắn --- */
-.message {
-  max-width: 60%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  word-wrap: break-word;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-/* --- Nội dung và thời gian --- */
-.content {
-  white-space: pre-line; // giữ xuống dòng
-}
-
-.time {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 4px;
-  align-self: flex-end;
 }

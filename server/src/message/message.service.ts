@@ -34,15 +34,25 @@ export class MessageService {
       content?: string;
       type?: 'text' | 'image' | 'file' | 'video';
       mediaUrl?: string;
+      mimetype?: string;
+      originalName?: string;
     },
   ): Promise<Message> {
-    const { content = '', type = 'text', mediaUrl = '' } = messageData;
+    const {
+      content = '',
+      type = 'text',
+      mediaUrl = '',
+      mimetype = '',
+      originalName = '',
+    } = messageData;
     const message = new this.messageModel({
       senderId: new Types.ObjectId(senderId),
       conversationId: new Types.ObjectId(conversationId),
       content,
       type,
       mediaUrl,
+      mimetype,
+      originalName,
     });
     return message.save();
   }

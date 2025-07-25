@@ -12,8 +12,8 @@ import {
   setSelectedUser as setUserSelected,
 } from '@/lib/store/reducer/user/userSlice';
 import { UserType } from '@/types';
-import { LoadingOutlined } from '@ant-design/icons';
-import { Input, List, Spin } from 'antd';
+import { LoadingOutlined, SearchOutlined } from '@ant-design/icons';
+import { Input, List, Skeleton, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from './ChatListSidebar.module.scss';
@@ -28,15 +28,8 @@ export default function ChatListSidebar() {
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
+  const currentUser = useSelector((state: RootState) => state.userReducer.user);
   const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
-
-  const searchUsers = useDebounce(async (value: string) => {
-    if (!value.trim()) {
-      setIsSearching(false);
-      return;
-    }
-    setIsSearching(true);
-  }, 300);
 
   const handleSearch = async (value: string) => {
     setSearchText(value);
@@ -44,7 +37,7 @@ export default function ChatListSidebar() {
       setIsSearching(false);
       return;
     }
-
+    setIsSearching(true); // Bắt đầu loading
     // Hàm kiểm tra có phải email không
     const isEmail = (str: string) => /\S+@\S+\.\S+/.test(str);
 
@@ -62,25 +55,28 @@ export default function ChatListSidebar() {
           if (existing) {
             dispatch(setSelectedConversation(existing));
           } else {
-            // Chưa có, cho phép tạo mới
+            // Chưa có, chỉ setSelectedUser, KHÔNG setSelectedConversation(null)
             dispatch(setUserSelected(user));
-            dispatch(setSelectedConversation(null));
+            // Không setSelectedConversation(null) ở đây!
           }
         } else {
-          // Không tìm thấy user, có thể hiển thị thông báo
-          dispatch(setUserSelected(null));
-          dispatch(setSelectedConversation(null));
+          // Không tìm thấy user, chỉ setSelectedUser(null)
+          dispatch(setSelectedUser(null));
+          // Không setSelectedConversation(null) ở đây!
         }
-        setIsSearching(false);
       } catch (err) {
-        dispatch(setUserSelected(null));
-        dispatch(setSelectedConversation(null));
-        setIsSearching(false);
+        dispatch(setSelectedUser(null));
+        // Không setSelectedConversation(null) ở đây!
+      } finally {
+        setIsSearching(false); // Kết thúc loading
       }
     } else {
       // Tìm kiếm hội thoại theo name
-      dispatch(searchConversation(value));
-      setIsSearching(true);
+      try {
+        await dispatch(searchConversation(value));
+      } finally {
+        setIsSearching(false); // Kết thúc loading
+      }
     }
   };
 
@@ -122,79 +118,123 @@ export default function ChatListSidebar() {
 
   const isEmail = (str: string) => /\S+@\S+\.\S+/.test(str);
 
-  const listData = isSearching
-    ? searchResults
-    : isEmail(searchText)
-      ? selectedUser
-        ? [selectedUser]
-        : []
-      : conversations;
+  const isEmailSearch = isEmail(searchText);
+
+  function getListData() {
+    if (isSearching) return [];
+    if (isEmailSearch) return selectedUser ? [selectedUser] : [];
+    if (searchText) return searchResults;
+    return conversations;
+  }
+  const listData = getListData();
 
   return (
     <div className={styles.chatListSidebar}>
       <div className={styles.header}>
         <Input.Search
-          placeholder="Tìm kiếm hội thoại"
+          placeholder="Tìm kiếm"
           value={searchText}
           onChange={(e) => handleSearch(e.target.value)}
           style={{ marginBottom: 16 }}
         />
-        {isSearching && <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />}
+        {isSearching && (
+          <div>
+            {[...Array(4)].map((_, idx) => (
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }} key={idx}>
+                <Skeleton.Avatar active size="large" shape="circle" style={{ marginRight: 12 }} />
+                <Skeleton
+                  active
+                  title={false}
+                  paragraph={{ rows: 2, width: ['60%', '40%'] }}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.chatList}>
-        <List
-          dataSource={listData}
-          renderItem={(item: any) => {
-            // Nếu là user tìm theo email (không có isGroup)
-            if (!item.isGroup && !item.lastMessage && item.email) {
-              return (
-                <List.Item onClick={() => handleSelectUser(item)}>
-                  <div className={styles.userSearchResult}>
-                    <img
-                      src={item.avatar || '/avtDefault.png'}
-                      alt="avatar"
-                      className={styles.avatar}
-                    />
-                    <div className={styles.userInfo}>
-                      <div className={styles.name}>{item.username}</div>
-                      <div className={styles.email}>{item.email}</div>
+        {isSearching ? (
+          <div>
+            {[...Array(4)].map((_, idx) => (
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }} key={idx}>
+                <Skeleton.Avatar active size="large" shape="circle" style={{ marginRight: 12 }} />
+                <Skeleton
+                  active
+                  title={false}
+                  paragraph={{ rows: 2, width: ['60%', '40%'] }}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <List
+              dataSource={listData}
+              renderItem={(item: any) => {
+                // Nếu là user tìm theo email (không có isGroup)
+                if (!item.isGroup && !item.lastMessage && item.email) {
+                  return (
+                    <List.Item onClick={() => handleSelectUser(item)}>
+                      <div className={styles.userSearchResult}>
+                        <img
+                          src={item.avatar || '/avtDefault.png'}
+                          alt="avatar"
+                          className={styles.avatar}
+                        />
+                        <div className={styles.userInfo}>
+                          <div className={styles.name}>{item.username}</div>
+                          <div className={styles.email}>{item.email}</div>
+                        </div>
+                      </div>
+                    </List.Item>
+                  );
+                }
+                // Nếu là hội thoại
+                // Lấy tên và avatar người nhận từ memberPreviews (khác currentUser._id)
+                const receiver = item.memberPreviews?.find(
+                  (user: any) => user._id !== currentUser?._id
+                );
+                const receiverName = receiver ? receiver.username : '';
+                const receiverAvatar = receiver ? receiver.avatar : '';
+                return (
+                  <List.Item>
+                    <div
+                      key={item._id}
+                      className={`${styles.chatItem} ${selectedConversation?._id === item._id ? styles.active : ''}`}
+                      onClick={() => handleSelect(item._id)}
+                    >
+                      <img
+                        src={receiverAvatar || '/avtDefault.png'}
+                        alt="avatar"
+                        className={styles.avatar}
+                      />
+                      <div className={styles.chatInfo}>
+                        <div className={styles.name}>{receiverName}</div>
+                        <div className={styles.message}>{item.lastMessage}</div>
+                      </div>
+                      <div className={styles.time}>
+                        {item.updatedAt ? formatUpdatedAt(item.updatedAt) : ''}
+                      </div>
                     </div>
-                  </div>
-                </List.Item>
-              );
-            }
-            // Nếu là hội thoại
-            return (
-              <List.Item>
-                <div
-                  key={item._id}
-                  className={`${styles.chatItem} ${selectedConversation?._id === item._id ? styles.active : ''}`}
-                  onClick={() => handleSelect(item._id)}
-                >
-                  <img
-                    src={
-                      item.isGroup
-                        ? item.avatar // Avatar nhóm
-                        : item.receiver?.avatar // Avatar người nhận 1-1
-                    }
-                    alt="avatar"
-                    className={styles.avatar}
-                  />
-                  <div className={styles.chatInfo}>
-                    <div className={styles.name}>
-                      {item.isGroup ? item.avatar : item.receiver?.username}
-                    </div>
-                    <div className={styles.message}>{item.lastMessage}</div>
-                  </div>
-                  <div className={styles.time}>
-                    {item.updatedAt ? formatUpdatedAt(item.updatedAt) : ''}
-                  </div>
+                  </List.Item>
+                );
+              }}
+            />
+            {/* Thông báo không tìm thấy người dùng khi tìm kiếm bằng email */}
+            {searchText && isEmailSearch && listData.length === 0 && (
+              <div className={styles.notFoundBlock}>
+                <div className={styles.notFoundIcon}>
+                  <SearchOutlined />
                 </div>
-              </List.Item>
-            );
-          }}
-        />
+                <div className={styles.notFoundTitle}>Không tìm thấy người dùng</div>
+                <div className={styles.notFoundDesc}>email chưa đăng ký tài khoản.</div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -20,7 +20,7 @@
     overflow: hidden;
 
     .header {
-      height: 8vw;
+      height: 80px;
       background-color: #ffffff;
       font-weight: bold;
       flex-shrink: 0;
@@ -33,10 +33,30 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
+      /* Custom scrollbar cho Chrome, Edge, Safari */
+      &::-webkit-scrollbar {
+        width: 8px;
+        background: transparent;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: #bdbdbd; // Xám nhạt, nổi bật trên nền chat
+        border-radius: 6px;
+        transition: background 0.2s;
+      }
+      &::-webkit-scrollbar-thumb:hover {
+        background: #888; // Xám đậm hơn khi hover
+      }
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      scrollbar-width: thin;
+      scrollbar-color: #bdbdbd transparent;
     }
 
     .input {
-      height: 10vw;
+      min-height: 100px;
+      height: auto;
       background-color: #ffffff;
       flex-shrink: 0;
     }

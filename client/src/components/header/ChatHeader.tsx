@@ -13,22 +13,32 @@ export default function ChatHeader() {
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
+  const currentUser = useSelector((state: RootState) => state.userReducer.user);
+  console.log('currentUser', currentUser);
   const userId = selectedUser?._id;
   const userStatus = useSelector((state: RootState) =>
     userId ? state.userStatusReducer.statuses[userId] : undefined
   );
+  const receiver = selectedConversation?.memberPreviews?.find(
+    (user: any) => user._id !== currentUser?._id
+  );
+
+  const receiverName = receiver ? receiver.username : '';
+  const receiverAvatar = receiver ? receiver.avatar : '';
+  console.log('selectedConversation', selectedConversation);
+  console.log('receiverName', receiverName);
   useEffect(() => {
     if (selectedUser) {
       dispatch(fetchUserStatus(selectedUser._id));
     }
   }, [selectedUser]);
-  if (!selectedUser) return null;
+  if (!selectedUser && !selectedConversation) return null;
   return (
     <div className={styles.chatHeader}>
       <div className={styles.left}>
-        <Avatar src={selectedUser.avatar} size="large" />
+        <Avatar src={receiverAvatar} size="large" />
         <div className={styles.info}>
-          <div className={styles.name}>{selectedUser.username}</div>
+          <div className={styles.name}>{receiverName}</div>
           <div className={styles.status}>
             {!selectedConversation ? (
               'Không rõ'

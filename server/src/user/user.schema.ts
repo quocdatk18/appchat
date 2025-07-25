@@ -18,7 +18,7 @@ export class User {
   @Prop({ default: '' })
   avatar: string;
   @Prop()
-  fullname: string;
+  nickname: string;
 
   @Prop({ type: String, enum: ['male', 'female', 'other'], default: 'other' })
   gender: string;

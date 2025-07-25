@@ -1,3 +1,4 @@
+// ===== Chat List Sidebar Layout =====
 .chatListSidebar {
   display: flex;
   flex-direction: column;
@@ -5,27 +6,38 @@
   background-color: #f7f9fb;
   border-right: 1px solid #e0e0e0;
 
+  // ===== Header (Search) =====
   .header {
+    position: relative;
     padding: 12px;
-    background-color: #ffffff;
+    background-color: #fff;
     border-bottom: 1px solid #e0e0e0;
   }
-
-  .chatList {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0;
-    background: #f7f9fb;
-    border: none;
+  .searchWrapper {
+    position: relative;
+    width: 100%;
+  }
+  .spinSearch {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+    margin: 120px 0;
   }
 
+  // ===== Chat List =====
+  .chatList {
+    // ...
+  }
   .chatItem {
     display: flex;
     align-items: center;
     width: 100%;
     border-radius: 12px;
     padding: 16px 20px;
-    margin-bottom: 12px;
+    margin-bottom: 0;
     cursor: pointer;
     background: #fff;
     transition:
@@ -34,127 +46,142 @@
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
     border: none;
     box-sizing: border-box;
+    border-bottom: 1px solid #f0f0f0;
+    &:last-child {
+      border-bottom: none;
+    }
+    &:hover,
+    &.active {
+      background: #e6f4ff !important;
+      color: #222 !important;
+      box-shadow: 0 2px 8px rgba(0, 132, 255, 0.08);
+      border: none;
+      z-index: 1;
+    }
+    &.active .name,
+    &.active .message,
+    &.active .time {
+      color: #222 !important;
+      transition: color 0.2s;
+    }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 12px;
+      border: 2px solid #fff;
+      background: #eee;
+    }
+    .chatInfo {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      .name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #222;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: color 0.2s;
+      }
+      .message {
+        font-size: 13px;
+        color: #888;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: color 0.2s;
+      }
+    }
+    .time {
+      font-size: 12px;
+      color: #aaa;
+      margin-left: 8px;
+      white-space: nowrap;
+      align-self: flex-start;
+      transition: color 0.2s;
+    }
   }
-
-  .chatItem:hover,
-  .active {
-    background: #e6f4ff !important;
-    color: #222 !important;
-    box-shadow: 0 2px 8px rgba(0, 132, 255, 0.08);
-    border: none;
-    z-index: 1;
-  }
-
-  .active .name,
-  .active .message,
-  .active .time {
-    color: #222 !important;
-    transition: color 0.2s;
-  }
-
-  .avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-right: 12px;
-    border: 2px solid #fff;
-    background: #eee;
-  }
-
-  .chatInfo {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-
-  .name {
-    font-size: 16px;
-    font-weight: 600;
-    color: #222;
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.2s;
-  }
-
-  .message {
-    font-size: 13px;
-    color: #888;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.2s;
-  }
-
-  .time {
-    font-size: 12px;
-    color: #aaa;
-    margin-left: 8px;
-    white-space: nowrap;
-    align-self: flex-start;
-    transition: color 0.2s;
-  }
-
   .searchResults {
     display: flex;
     flex-direction: column;
   }
-}
-
-.userSearchResult {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  margin: 8px 0;
-  background: #fff;
-  width: 100%;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-  transition:
-    background 0.2s,
-    box-shadow 0.2s;
-
-  &:hover {
-    background: #e6f7ff;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  // ===== User Search Result =====
+  .userSearchResult {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      box-shadow 0.2s;
+    &:hover {
+      background: #e6f7ff;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 16px;
+      border: 2px solid #1890ff;
+      background: #f0f0f0;
+    }
+    .userInfo {
+      display: flex;
+      flex-direction: column;
+      .name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #222;
+      }
+      .email {
+        font-size: 0.95rem;
+        color: #888;
+        margin-top: 2px;
+      }
+    }
   }
-}
-
-.userSearchResult .avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-right: 16px;
-  border: 2px solid #1890ff;
-  background: #f0f0f0;
-}
-
-.userSearchResult .userInfo {
-  display: flex;
-  flex-direction: column;
-}
-
-.userSearchResult .name {
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: #222;
-}
-
-.userSearchResult .email {
-  font-size: 0.95rem;
-  color: #888;
-  margin-top: 2px;
-}
-
-.notFound {
-  text-align: center;
-  color: #888;
-  padding: 24px 0;
-  font-size: 1.1rem;
+  // ===== Not Found Block =====
+  .notFoundBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 12px 0 12px;
+    text-align: center;
+    color: #222;
+    .notFoundIcon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .notFoundTitle {
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+      color: #222;
+    }
+    .notFoundDesc {
+      font-size: 0.98rem;
+      color: #888;
+      line-height: 1.5;
+    }
+  }
+  // ===== Ant Design List Custom =====
+  :global(.ant-list-item) {
+    padding: 0 !important;
+  }
 }
