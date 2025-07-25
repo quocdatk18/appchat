@@ -8,6 +8,8 @@ import {
   Param,
   Query,
   Delete,
+  Patch,
+  Req,
 } from '@nestjs/common';
 import { ConversationService } from './conversation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -69,5 +71,13 @@ export class ConversationController {
   @Delete(':id')
   async deleteConversation(@Param('id') id: string) {
     return this.conversationService.deleteConversation(id);
+  }
+
+  // Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/delete')
+  async deleteConversationForUser(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.conversationService.deleteConversationForUser(id, userId);
   }
 }

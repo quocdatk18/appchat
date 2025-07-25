@@ -31,11 +31,17 @@ export class Message {
   @Prop({ type: String, default: '' })
   originalName: string; // Tên file gốc
 
-  @Prop({ type: Boolean, default: false })
-  isDeleted: boolean; // Hỗ trợ thu hồi/xóa
+  @Prop({ type: [String], default: [] })
+  deletedBy: string[]; // userId đã xoá message này (chỉ ẩn phía họ)
 
-  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
-  seenBy: Types.ObjectId[]; // Ai đã đọc
+  @Prop({ type: [String], default: [] })
+  seenBy: string[]; // userId đã xem message này
+
+  @Prop({ type: Boolean, default: false })
+  recalled: boolean; // true nếu đã thu hồi (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+
+  @Prop({ type: Date, default: null })
+  recallAt: Date; // thời điểm thu hồi, dùng cho cron xoá vật lý
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

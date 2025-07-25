@@ -1,11 +1,12 @@
 // types/index.ts
-export type Gender = 'male' | 'female' | 'other';
+export type Gender = 'male' | 'female';
 
 export interface UserType {
   _id: string; // thêm id để đồng bộ
   username: string;
   avatar: string;
   online: boolean;
+  nickname?: string;
 }
 
 export interface AuthState {
@@ -13,8 +14,9 @@ export interface AuthState {
     _id: string;
     username: string;
     email: string;
-    gender: string;
+    gender: Gender;
     avatar: string;
+    nickname?: string;
   } | null;
   token: string | null;
   isAuthenticated: boolean;
@@ -24,12 +26,6 @@ export interface AuthState {
   initialized: boolean;
 }
 
-type MiniUser = {
-  _id: string;
-  username: string;
-  avatar: string;
-};
-
 export interface Message {
   _id: string;
   conversationId: string;
@@ -37,10 +33,11 @@ export interface Message {
   receiverId?: string; // chỉ có khi 1-1
   content: string;
   createdAt: string;
-  sender?: MiniUser; // dùng cho chat nhóm hoặc FE cần
+  sender?: Pick<UserType, '_id' | 'username' | 'avatar'>; // dùng cho chat nhóm hoặc FE cần
   mediaUrl?: string; // đường dẫn file
   mimetype?: string; // loại file thực tế (image/png, video/mp4, ...)
   originalName?: string; // tên file gốc
+  seenBy?: string[]; // userId đã xem message này
 }
 
 export interface MessageState {
@@ -59,6 +56,7 @@ export interface Conversation {
   memberPreviews?: UserType[]; // preview cho nhóm
   lastMessage?: string;
   updatedAt?: string;
+  deletedBy?: string[]; // userId đã xoá conversation này (ẩn với họ)
 }
 
 export interface ConversationState {

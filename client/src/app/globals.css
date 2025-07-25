@@ -21,3 +21,32 @@ li {
 :global(.ant-list) {
   gap: 0 !important;
 }
+
+/* ===== Ant Design Dropdown Menu Custom (Zalo style) ===== */
+.ant-dropdown-menu {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
+  min-width: 180px !important;
+  padding: 8px 0 !important;
+  font-size: 16px;
+}
+.ant-dropdown-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  transition: background 0.18s;
+}
+.ant-dropdown-menu-item:hover {
+  background: #f5f6fa !important;
+  color: #0084ff !important;
+}
+
+/* Đảm bảo dropdown nổi trên sidebar */
+.ant-dropdown {
+  z-index: 2000 !important;
+}
+.ant-dropdown-menu {
+  z-index: 2001 !important;
+}

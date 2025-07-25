@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
+  Patch,
 } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -51,5 +52,29 @@ export class MessageController {
     @Param('conversationId') conversationId: string,
   ) {
     return this.messageService.getMessagesByConversationId(conversationId);
+  }
+
+  // Thu hồi message (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/recall')
+  async recallMessage(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.messageService.recallMessage(id, userId);
+  }
+
+  // Xoá message phía người gửi (chỉ ẩn phía họ)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/delete')
+  async deleteMessageForUser(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.messageService.deleteMessageForUser(id, userId);
+  }
+
+  // Đánh dấu message đã đọc (thêm userId vào seenBy)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/seen')
+  async markMessageSeen(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.messageService.markMessageSeen(id, userId);
   }
 }

@@ -1,28 +1,63 @@
-import { Image } from 'antd';
-import { ContactsOutlined, MessageOutlined, LogoutOutlined } from '@ant-design/icons';
-import styles from './Sidebar.module.scss';
-import ChatListSidebar from '../chatListSidebar/ChatListSidebar';
-import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/lib/store';
 import { logout } from '@/lib/store/reducer/user/userSlice';
-export default function Sidebar() {
+import { UserType } from '@/types';
+import {
+  ContactsOutlined,
+  InfoCircleOutlined,
+  LogoutOutlined,
+  MessageOutlined,
+} from '@ant-design/icons';
+import { Dropdown, Image } from 'antd';
+import { useDispatch, useSelector } from 'react-redux';
+import ChatListSidebar from '../chatListSidebar/ChatListSidebar';
+import styles from './Sidebar.module.scss';
+
+export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: UserType) => void }) {
   const user = useSelector((state: RootState) => state.userReducer.user);
   const dispach = useDispatch<AppDispatch>();
   const handelLogout = () => {
     dispach(logout());
   };
+
+  const items = [
+    {
+      key: 'profile',
+      icon: <InfoCircleOutlined />,
+      label: 'Thông tin tài khoản',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Đăng xuất',
+    },
+  ];
+
   return (
     <div>
       <div className={styles.sidebar}>
         <div className={styles.sidebarLeft}>
           <ul className={styles.sidebarLeftTop}>
             <li className={styles.avatar}>
-              <Image
-                className={styles.imageAvatar}
-                alt="avata"
-                preview={false}
-                src={user?.avatar || '/avtDefault.png'}
-              />
+              <Dropdown
+                menu={{
+                  items,
+                  onClick: ({ key }) => {
+                    if (key === 'profile' && onAvatarClick && user)
+                      onAvatarClick({ ...user, online: true });
+                    if (key === 'logout') handelLogout();
+                  },
+                }}
+                trigger={['click']}
+                placement="bottomLeft"
+              >
+                <Image
+                  className={styles.imageAvatar}
+                  alt="avata"
+                  preview={false}
+                  src={user?.avatar || '/avtDefault.png'}
+                  style={{ cursor: 'pointer' }}
+                />
+              </Dropdown>
             </li>
             <li className={styles.menuItem}>
               <MessageOutlined />

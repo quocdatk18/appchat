@@ -24,7 +24,7 @@ export class UploadController {
         destination: (req: Request, file, cb) => {
           // Lấy loại upload từ body hoặc query, mặc định là 'message'
           const type = req.body.type || req.query.type || 'message';
-
+          console.log('Type:', req.body.type);
           // Lấy ngày hiện tại
           const date = new Date();
           const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1)
@@ -94,7 +94,11 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: Request,
   ) {
+    console.log('Upload body:', req.body);
     try {
+      if (!file) {
+        throw new BadRequestException('Không nhận được file upload');
+      }
       // Loại upload (message/avatar) để xác định thư mục
       const uploadType = req.body.type || req.query.type || 'message';
       const date = new Date();
@@ -103,11 +107,8 @@ export class UploadController {
         .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
       const host = req.get('host');
       const protocol = req.protocol;
-      return {
-        message: 'File uploaded successfully',
-        filePath: `${protocol}://${host}/uploads/${uploadType}/${dateStr}/${file.filename}`,
-        mimetype: file.mimetype, // thêm mimetype thực tế
-      };
+      const url = `${protocol}://${host}/uploads/${uploadType}/${dateStr}/${file.filename}`;
+      return { url, mimetype: file.mimetype, originalName: file.originalname };
     } catch (err) {
       throw new BadRequestException(err.message || 'Upload failed');
     }

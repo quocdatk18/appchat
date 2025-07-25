@@ -1,4 +1,9 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsEnum, IsString } from 'class-validator';
+
+export enum Gender {
+  Male = 'male',
+  Female = 'female',
+}
 
 export class UpdateUserDto {
   @IsOptional()
@@ -8,4 +13,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   avatar?: string; // url hoặc path đã upload
+
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
 }

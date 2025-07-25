@@ -83,6 +83,33 @@ export const searchUserByEmail = createAsyncThunk<UserType | null, string, { rej
   }
 );
 
+export const handleUpload = createAsyncThunk(
+  'user/handleUpload',
+  async (formData: FormData, { rejectWithValue }) => {
+    try {
+      const res = await axiosClient.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || 'Upload failed');
+    }
+  }
+);
+
+export const updateUser = createAsyncThunk<
+  any, // trả về user mới nhất
+  { nickname?: string; avatar?: string; gender?: string },
+  { rejectValue: string }
+>('user/updateUser', async (updateData, { rejectWithValue }) => {
+  try {
+    const res = await axiosClient.patch('/user/profile', updateData);
+    return res.data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || 'Update failed');
+  }
+});
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -178,6 +205,12 @@ const authSlice = createSlice({
         state.loading = false;
         state.selectedUser = null;
         state.error = action.payload as string;
+      })
+      .addCase(updateUser.fulfilled, (state, action) => {
+        if (state.user && action.payload) {
+          state.user = { ...state.user, ...action.payload };
+          localStorage.setItem('user', JSON.stringify(state.user));
+        }
       });
   },
 });

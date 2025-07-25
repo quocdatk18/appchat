@@ -116,6 +116,26 @@
         color: #6b7280;
         margin-top: 4px;
         align-self: flex-end;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        .seen {
+          display: inline-flex;
+          align-items: center;
+          background: #e5eaf3;
+          color: #1890ff;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 0 10px 0 6px;
+          margin-left: 4px;
+          height: 22px;
+          box-shadow: 0 1px 4px rgba(24, 144, 255, 0.06);
+          svg {
+            margin-right: 4px;
+            font-size: 15px;
+          }
+        }
       }
       img,
       .ant-image-img {

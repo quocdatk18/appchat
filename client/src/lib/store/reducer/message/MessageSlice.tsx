@@ -46,6 +46,48 @@ export const sendMessage = createAsyncThunk<Message, Partial<Message>, { rejectV
   }
 );
 
+// --- Xoá message phía 1 user (ẩn với họ, không xoá vật lý) ---
+export const deleteMessageForUser = createAsyncThunk<
+  string, // trả về id message đã xoá
+  string, // id message
+  { rejectValue: string }
+>('messages/deleteMessageForUser', async (messageId, { rejectWithValue }) => {
+  try {
+    await axiosClient.patch(`/messages/${messageId}/delete`);
+    return messageId;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to delete message');
+  }
+});
+
+// --- Thu hồi message (ẩn cả 2 phía, sẽ xoá vật lý sau N phút) ---
+export const recallMessage = createAsyncThunk<
+  string, // trả về id message đã thu hồi
+  string, // id message
+  { rejectValue: string }
+>('messages/recallMessage', async (messageId, { rejectWithValue }) => {
+  try {
+    await axiosClient.patch(`/messages/${messageId}/recall`);
+    return messageId;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to recall message');
+  }
+});
+
+// --- Đánh dấu message đã đọc (thêm userId vào seenBy) ---
+export const markMessageSeen = createAsyncThunk<
+  { messageId: string; userId: string },
+  { messageId: string; userId: string },
+  { rejectValue: string }
+>('messages/markMessageSeen', async ({ messageId, userId }, { rejectWithValue }) => {
+  try {
+    await axiosClient.patch(`/messages/${messageId}/seen`);
+    return { messageId, userId };
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to mark message as seen');
+  }
+});
+
 // ───────────────────────────────────────────────
 // 🧩 Slice Redux
 const messageSlice = createSlice({
@@ -90,6 +132,25 @@ const messageSlice = createSlice({
       .addCase(sendMessage.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Không gửi được tin nhắn';
+      })
+
+      .addCase(deleteMessageForUser.fulfilled, (state, action) => {
+        // Ẩn message khỏi state (ẩn với user)
+        state.messages = state.messages.filter((m) => m._id !== action.payload);
+      })
+      .addCase(recallMessage.fulfilled, (state, action) => {
+        // Đánh dấu message đã thu hồi (ẩn cả 2 phía)
+        state.messages = state.messages.map((m) =>
+          m._id === action.payload ? { ...m, recalled: true } : m
+        );
+      })
+      .addCase(markMessageSeen.fulfilled, (state, action) => {
+        // Thêm userId vào seenBy của message
+        state.messages = state.messages.map((m) =>
+          m._id === action.payload.messageId
+            ? { ...m, seenBy: [...(m.seenBy || []), action.payload.userId] }
+            : m
+        );
       });
   },
 });

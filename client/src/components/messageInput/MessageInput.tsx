@@ -89,7 +89,7 @@ export default function MessageInput() {
       }
 
       const data = await res.json();
-      const fileUrl = data.filePath;
+      const fileUrl = data.url; // Sửa lại dòng này
       const mimetype = data.mimetype; // lấy mimetype thực tế
       const originalName = file.name; // lấy tên file gốc
       console.log('mimetype = ', mimetype);

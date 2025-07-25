@@ -1,19 +1,19 @@
 'use client';
-import { useDebounce } from '@/hooks/hookCustoms';
 import { AppDispatch, RootState } from '@/lib/store';
 import {
   fetchConversations,
   searchConversation,
   setSelectedConversation,
   setSelectedUser,
+  deleteConversationForUser,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import {
   searchUserByEmail,
   setSelectedUser as setUserSelected,
 } from '@/lib/store/reducer/user/userSlice';
 import { UserType } from '@/types';
-import { LoadingOutlined, SearchOutlined } from '@ant-design/icons';
-import { Input, List, Skeleton, Spin } from 'antd';
+import { SearchOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Input, List, Skeleton, Modal, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from './ChatListSidebar.module.scss';
@@ -57,16 +57,13 @@ export default function ChatListSidebar() {
           } else {
             // Chưa có, chỉ setSelectedUser, KHÔNG setSelectedConversation(null)
             dispatch(setUserSelected(user));
-            // Không setSelectedConversation(null) ở đây!
           }
         } else {
           // Không tìm thấy user, chỉ setSelectedUser(null)
           dispatch(setSelectedUser(null));
-          // Không setSelectedConversation(null) ở đây!
         }
       } catch (err) {
         dispatch(setSelectedUser(null));
-        // Không setSelectedConversation(null) ở đây!
       } finally {
         setIsSearching(false); // Kết thúc loading
       }
@@ -112,6 +109,25 @@ export default function ChatListSidebar() {
     }
   };
 
+  // Hàm xoá hội thoại
+  const handleDeleteConversation = (conversationId: string) => {
+    Modal.confirm({
+      title: 'Xác nhận xoá hội thoại',
+      content:
+        'Bạn có chắc chắn muốn xoá đoạn hội thoại này? Đoạn chat sẽ bị ẩn khỏi danh sách của bạn.',
+      okText: 'Xoá',
+      cancelText: 'Huỷ',
+      onOk: async () => {
+        try {
+          await dispatch<any>(deleteConversationForUser(conversationId));
+          message.success('Đã xoá hội thoại!');
+        } catch {
+          message.error('Xoá hội thoại thất bại!');
+        }
+      },
+    });
+  };
+
   useEffect(() => {
     dispatch(fetchConversations());
   }, [dispatch]);
@@ -124,7 +140,9 @@ export default function ChatListSidebar() {
     if (isSearching) return [];
     if (isEmailSearch) return selectedUser ? [selectedUser] : [];
     if (searchText) return searchResults;
-    return conversations;
+    // Ẩn các conversation mà deletedBy chứa user hiện tại
+    const userId = currentUser?._id || '';
+    return conversations.filter((c) => !c.deletedBy || !c.deletedBy.includes(userId));
   }
   const listData = getListData();
 
@@ -185,7 +203,7 @@ export default function ChatListSidebar() {
                           className={styles.avatar}
                         />
                         <div className={styles.userInfo}>
-                          <div className={styles.name}>{item.username}</div>
+                          <div className={styles.name}>{item.nickname || item.username}</div>
                           <div className={styles.email}>{item.email}</div>
                         </div>
                       </div>
@@ -197,27 +215,33 @@ export default function ChatListSidebar() {
                 const receiver = item.memberPreviews?.find(
                   (user: any) => user._id !== currentUser?._id
                 );
-                const receiverName = receiver ? receiver.username : '';
+                const receiverName = receiver ? receiver.nickname || receiver.username : '';
                 const receiverAvatar = receiver ? receiver.avatar : '';
                 return (
-                  <List.Item>
-                    <div
-                      key={item._id}
-                      className={`${styles.chatItem} ${selectedConversation?._id === item._id ? styles.active : ''}`}
-                      onClick={() => handleSelect(item._id)}
-                    >
-                      <img
-                        src={receiverAvatar || '/avtDefault.png'}
-                        alt="avatar"
-                        className={styles.avatar}
-                      />
-                      <div className={styles.chatInfo}>
-                        <div className={styles.name}>{receiverName}</div>
-                        <div className={styles.message}>{item.lastMessage}</div>
-                      </div>
-                      <div className={styles.time}>
-                        {item.updatedAt ? formatUpdatedAt(item.updatedAt) : ''}
-                      </div>
+                  <List.Item
+                    actions={[
+                      <DeleteOutlined
+                        key="delete"
+                        style={{ color: '#ff4d4f' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteConversation(item._id);
+                        }}
+                      />,
+                    ]}
+                    onClick={() => handleSelect(item._id)}
+                  >
+                    <img
+                      src={receiverAvatar || '/avtDefault.png'}
+                      alt="avatar"
+                      className={styles.avatar}
+                    />
+                    <div className={styles.chatInfo}>
+                      <div className={styles.name}>{receiverName}</div>
+                      <div className={styles.message}>{item.lastMessage}</div>
+                    </div>
+                    <div className={styles.time}>
+                      {item.updatedAt ? formatUpdatedAt(item.updatedAt) : ''}
                     </div>
                   </List.Item>
                 );

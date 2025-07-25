@@ -142,9 +142,9 @@ export class ConversationService {
           isGroup: 1,
           name: 1,
           avatar: 1,
-          receiver: { _id: 1, username: 1, avatar: 1 }, // chỉ cho 1-1
+          receiver: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
           members: 1,
-          memberPreviews: { _id: 1, username: 1, avatar: 1 }, // preview cho nhóm
+          memberPreviews: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
           lastMessage: '$lastMessage.content',
           updatedAt: 1,
         },
@@ -179,6 +179,15 @@ export class ConversationService {
       _id: conversationId,
     });
     return { deleted: result.deletedCount === 1 };
+  }
+
+  // Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý)
+  async deleteConversationForUser(conversationId: string, userId: string) {
+    return this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $addToSet: { deletedBy: userId } },
+      { new: true },
+    );
   }
 
   // Tìm kiếm hội thoại theo tên hoặc username thành viên

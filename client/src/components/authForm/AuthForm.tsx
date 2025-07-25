@@ -14,10 +14,9 @@ const { Option } = Select;
 
 interface Props {
   mode: 'login' | 'register';
-  onSubmit: (data: any) => void;
 }
 
-export default function AuthForm({ mode, onSubmit }: Props) {
+export default function AuthForm({ mode }: Props) {
   const isLogin = mode === 'login';
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
@@ -115,7 +114,6 @@ export default function AuthForm({ mode, onSubmit }: Props) {
                 <Select placeholder="Chọn giới tính" className={styles.genderSelect}>
                   <Option value="male">Nam</Option>
                   <Option value="female">Nữ</Option>
-                  <Option value="other">Khác</Option>
                 </Select>
               </Form.Item>
             </div>

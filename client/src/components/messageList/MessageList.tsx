@@ -2,7 +2,7 @@
 
 import socket from '@/api/socket';
 import { AppDispatch, RootState } from '@/lib/store';
-import { fetchMessages } from '@/lib/store/reducer/message/MessageSlice';
+import { fetchMessages, markMessageSeen } from '@/lib/store/reducer/message/MessageSlice';
 import { Conversation, UserType } from '@/types';
 import { LoadingOutlined } from '@ant-design/icons';
 import { Image, Skeleton, Spin } from 'antd';
@@ -18,7 +18,7 @@ export interface ConversationState {
   error: string | null;
 }
 
-export default function MessageList() {
+export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: any) => void }) {
   const dispatch = useDispatch<AppDispatch>();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const conversation = useSelector(
@@ -42,6 +42,35 @@ export default function MessageList() {
       socket.emit('join_conversation', conversation._id);
     }
   }, [conversation, currentUser, dispatch]);
+
+  useEffect(() => {
+    if (!conversation?._id || !currentUser?._id) return;
+    // Emit seen_message cho các message chưa đọc
+    messages.forEach((msg) => {
+      if (
+        msg._id &&
+        msg.senderId !== currentUser._id &&
+        (!msg.seenBy || !msg.seenBy.includes(currentUser._id))
+      ) {
+        socket.emit('seen_message', {
+          messageId: msg._id,
+          userId: currentUser._id,
+          conversationId: conversation._id,
+        });
+      }
+    });
+  }, [messages, conversation, currentUser]);
+
+  useEffect(() => {
+    // Lắng nghe event message_seen để cập nhật UI
+    const handler = ({ messageId, userId }: { messageId: string; userId: string }) => {
+      dispatch(markMessageSeen({ messageId, userId }));
+    };
+    socket.on('message_seen', handler);
+    return () => {
+      socket.off('message_seen', handler);
+    };
+  }, [dispatch]);
 
   const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
   const selectedConversation = useSelector(
@@ -74,13 +103,25 @@ export default function MessageList() {
 
   return (
     <div className={styles.messageList}>
-      {messages.map((msg) => {
-        const isMe = msg.senderId === currentUser?._id;
+      {messages.map((msg, idx) => {
+        const senderId =
+          typeof msg.senderId === 'string' ? msg.senderId : (msg.senderId as any)?._id;
+        const isMe = currentUser && senderId === currentUser._id;
         const avatarUrl = isMe
-          ? currentUser.avatar
-          : msg.sender?.avatar || conversation?.receiver?.avatar;
-        {
-        }
+          ? currentUser?.avatar
+          : (typeof msg.senderId === 'object'
+              ? (msg.senderId as any).avatar
+              : msg.sender?.avatar) || conversation?.receiver?.avatar;
+        // Kiểm tra có phải là message cuối cùng mình gửi không
+        const isLastMyMessage =
+          isMe &&
+          messages.slice(idx + 1).every((m) => {
+            const sId = typeof m.senderId === 'string' ? m.senderId : (m.senderId as any)?._id;
+            return sId !== currentUser._id;
+          });
+        // Kiểm tra đã được user nhận xem chưa (1-1)
+        const isSeen =
+          isLastMyMessage && msg.seenBy && msg.seenBy.some((uid) => uid !== currentUser._id);
         return (
           <div
             key={msg._id}
@@ -91,9 +132,13 @@ export default function MessageList() {
                 src={avatarUrl || '/avtDefault.png'}
                 alt="avatar"
                 className={styles.avatar}
-                onClick={() => {
-                  console.log('Click avatar:', msg.senderId);
-                }}
+                onClick={() =>
+                  onAvatarClick &&
+                  msg.senderId &&
+                  typeof msg.senderId === 'object' &&
+                  onAvatarClick(msg.senderId)
+                }
+                style={{ cursor: 'pointer' }}
               />
             )}
             <div className={styles.message}>
@@ -122,6 +167,7 @@ export default function MessageList() {
                   src={msg.mediaUrl}
                   preview={{ mask: null }}
                   style={{ maxWidth: 220, borderRadius: 8, marginBottom: 4, display: 'block' }}
+                  onLoad={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 />
               ) : msg.mediaUrl && msg.mimetype && msg.mimetype.startsWith('video/') ? (
                 <video
@@ -134,6 +180,7 @@ export default function MessageList() {
                     display: 'block',
                     background: '#000',
                   }}
+                  onLoadedData={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 />
               ) : (
                 <div className={styles.content}>{msg.content}</div>
@@ -143,6 +190,28 @@ export default function MessageList() {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
+                {isSeen && (
+                  <span className={styles.seen}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M7.5 13.5L4 10L2.5 11.5L7.5 16.5L17.5 6.5L16 5L7.5 13.5Z"
+                        fill="#1890ff"
+                      />
+                      <path
+                        d="M11.5 13.5L8 10L6.5 11.5L11.5 16.5L19.5 8.5L18 7L11.5 13.5Z"
+                        fill="#1890ff"
+                        fill-opacity="0.5"
+                      />
+                    </svg>
+                    Đã xem
+                  </span>
+                )}
               </div>
             </div>
           </div>

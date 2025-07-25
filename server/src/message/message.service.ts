@@ -125,10 +125,39 @@ export class MessageService {
   async getMessagesByConversationId(conversationId: string) {
     return this.messageModel
       .find({ conversationId: new Types.ObjectId(conversationId) })
-      .sort({ createdAt: 1 });
+      .sort({ createdAt: 1 })
+      .populate('senderId', 'username avatar gender nickname email'); // Thêm dòng này
   }
 
   async getUserConversations(userId: string) {
     return this.conversationService.getUserConversations(userId);
+  }
+
+  // Thu hồi message (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+  async recallMessage(id: string, userId: string) {
+    // Đánh dấu recalled, set recallAt = now
+    return this.messageModel.findByIdAndUpdate(
+      id,
+      { recalled: true, recallAt: new Date() },
+      { new: true },
+    );
+  }
+
+  // Xoá message phía người gửi (chỉ ẩn phía họ)
+  async deleteMessageForUser(id: string, userId: string) {
+    return this.messageModel.findByIdAndUpdate(
+      id,
+      { $addToSet: { deletedBy: userId } },
+      { new: true },
+    );
+  }
+
+  // Đánh dấu message đã đọc (thêm userId vào seenBy)
+  async markMessageSeen(id: string, userId: string) {
+    return this.messageModel.findByIdAndUpdate(
+      id,
+      { $addToSet: { seenBy: userId } },
+      { new: true },
+    );
   }
 }

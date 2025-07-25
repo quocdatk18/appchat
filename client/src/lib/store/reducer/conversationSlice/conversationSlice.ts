@@ -34,6 +34,7 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
         memberPreviews: item.memberPreviews, // cho nhóm
         lastMessage: item.lastMessage,
         updatedAt: item.updatedAt,
+        deletedBy: item.deletedBy, // userId đã xoá conversation này (ẩn với họ)
       }));
       return mappedConversations;
     } catch (error: any) {
@@ -77,6 +78,20 @@ export const searchConversation = createAsyncThunk(
     }
   }
 );
+
+// --- Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý) ---
+export const deleteConversationForUser = createAsyncThunk<
+  string, // trả về id conversation đã xoá
+  string, // id conversation
+  { rejectValue: string }
+>('conversation/deleteConversationForUser', async (conversationId, { rejectWithValue }) => {
+  try {
+    await axiosClient.patch(`/conversations/${conversationId}/delete`);
+    return conversationId;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.message || 'Failed to delete conversation');
+  }
+});
 
 // ---- Slice ----
 const conversationSlice = createSlice({
@@ -133,6 +148,14 @@ const conversationSlice = createSlice({
       .addCase(searchConversation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+      .addCase(deleteConversationForUser.fulfilled, (state, action) => {
+        // Xoá conversation khỏi state (ẩn với user)
+        state.conversations = state.conversations.filter((c) => c._id !== action.payload);
+        // Nếu đang chọn conversation này thì bỏ chọn
+        if (state.selectedConversation && state.selectedConversation._id === action.payload) {
+          state.selectedConversation = null;
+        }
       });
   },
 });

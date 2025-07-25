@@ -6,28 +6,13 @@
   background-color: #f7f9fb;
   border-right: 1px solid #e0e0e0;
 
-  // ===== Header (Search) =====
   .header {
     position: relative;
     padding: 12px;
     background-color: #fff;
     border-bottom: 1px solid #e0e0e0;
   }
-  .searchWrapper {
-    position: relative;
-    width: 100%;
-  }
-  .spinSearch {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 2;
-    pointer-events: none;
-    margin: 120px 0;
-  }
 
-  // ===== Chat List =====
   .chatList {
     // ...
   }
@@ -107,11 +92,6 @@
       transition: color 0.2s;
     }
   }
-  .searchResults {
-    display: flex;
-    flex-direction: column;
-  }
-  // ===== User Search Result =====
   .userSearchResult {
     display: flex;
     align-items: center;
@@ -151,7 +131,6 @@
       }
     }
   }
-  // ===== Not Found Block =====
   .notFoundBlock {
     display: flex;
     flex-direction: column;
@@ -180,7 +159,6 @@
       line-height: 1.5;
     }
   }
-  // ===== Ant Design List Custom =====
   :global(.ant-list-item) {
     padding: 0 !important;
   }

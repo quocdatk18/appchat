@@ -145,4 +145,17 @@ export class MessageGateway
       console.error('Lỗi khi gửi tin nhắn:', error);
     }
   }
+
+  @SubscribeMessage('seen_message')
+  async handleSeenMessage(
+    @MessageBody()
+    payload: { messageId: string; userId: string; conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { messageId, userId, conversationId } = payload;
+    // Cập nhật seenBy ở DB
+    await this.messageService.markMessageSeen(messageId, userId);
+    // Broadcast cho các thành viên khác trong conversation
+    this.server.to(conversationId).emit('message_seen', { messageId, userId });
+  }
 }

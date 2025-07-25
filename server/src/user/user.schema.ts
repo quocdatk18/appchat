@@ -20,7 +20,7 @@ export class User {
   @Prop()
   nickname: string;
 
-  @Prop({ type: String, enum: ['male', 'female', 'other'], default: 'other' })
+  @Prop({ type: String, enum: ['male', 'female'], default: 'male' })
   gender: string;
 
   @Prop({ default: false })

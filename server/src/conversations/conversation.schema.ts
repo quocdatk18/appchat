@@ -22,6 +22,9 @@ export class Conversation {
 
   @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
   admins: Types.ObjectId[]; // Admin nhóm (nếu là group)
+
+  @Prop({ type: [String], default: [] })
+  deletedBy: string[]; // userId đã xoá conversation này (ẩn với họ, không xoá vật lý)
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
