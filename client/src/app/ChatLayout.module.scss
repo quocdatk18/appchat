@@ -1,13 +1,15 @@
 .container {
   display: flex;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
   overflow: hidden;
 
   .sidebar {
     flex: 0 0 30%;
     height: 100%;
     overflow: hidden;
+    min-width: 0;
+    max-width: 30%;
   }
 
   .chatPanel {

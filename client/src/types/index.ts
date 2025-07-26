@@ -32,6 +32,7 @@ export interface Message {
   senderId: string;
   receiverId?: string; // chỉ có khi 1-1
   content: string;
+  type?: string; // loại message: text, image, file, video
   createdAt: string;
   sender?: Pick<UserType, '_id' | 'username' | 'avatar'>; // dùng cho chat nhóm hoặc FE cần
   mediaUrl?: string; // đường dẫn file
@@ -55,8 +56,11 @@ export interface Conversation {
   members?: string[]; // mảng id
   memberPreviews?: UserType[]; // preview cho nhóm
   lastMessage?: string;
+  lastMessageType?: string;
+  lastMessageSenderId?: string;
   updatedAt?: string;
   deletedBy?: string[]; // userId đã xoá conversation này (ẩn với họ)
+  createdBy?: string; // userId người tạo nhóm
 }
 
 export interface ConversationState {

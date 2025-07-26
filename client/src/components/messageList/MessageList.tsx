@@ -4,8 +4,8 @@ import socket from '@/api/socket';
 import { AppDispatch, RootState } from '@/lib/store';
 import { fetchMessages, markMessageSeen } from '@/lib/store/reducer/message/MessageSlice';
 import { Conversation, UserType } from '@/types';
-import { LoadingOutlined } from '@ant-design/icons';
-import { Image, Skeleton, Spin } from 'antd';
+import { Image, Skeleton } from 'antd';
+import { LoadingOverlay } from '@/components/common';
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from './MessageList.module.scss';
@@ -39,7 +39,6 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
   useEffect(() => {
     if (conversation?._id && currentUser?._id) {
       dispatch(fetchMessages(conversation._id));
-      socket.emit('join_conversation', conversation._id);
     }
   }, [conversation, currentUser, dispatch]);
 
@@ -77,13 +76,24 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
     (state: RootState) => state.conversationReducer.selectedConversation
   );
 
-  if (!selectedUser) return;
+  // Chỉ return nếu không có conversation (cả 1-1 và nhóm)
   if (!selectedConversation) return;
 
   if (loading) {
     return (
       <div className={styles.messageList}>
-        <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+        <LoadingOverlay loading={loading} text="Đang tải tin nhắn..." size="large">
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* Placeholder content */}
+          </div>
+        </LoadingOverlay>
       </div>
     );
   }
@@ -112,6 +122,17 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
           : (typeof msg.senderId === 'object'
               ? (msg.senderId as any).avatar
               : msg.sender?.avatar) || conversation?.receiver?.avatar;
+
+        // Lấy tên người gửi cho nhóm chat
+        let senderName = '';
+        if (conversation?.isGroup && !isMe) {
+          // Nhóm chat: hiển thị tên người gửi (trừ current user)
+          if (typeof msg.senderId === 'object' && msg.senderId) {
+            senderName = (msg.senderId as any).nickname || (msg.senderId as any).username || '';
+          } else if (msg.sender) {
+            senderName = (msg.sender as any).nickname || msg.sender.username || '';
+          }
+        }
         // Kiểm tra có phải là message cuối cùng mình gửi không
         const isLastMyMessage =
           isMe &&
@@ -142,6 +163,8 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
               />
             )}
             <div className={styles.message}>
+              {/* Hiển thị tên người gửi trong nhóm chat */}
+              {senderName && <div className={styles.senderName}>{senderName}</div>}
               {msg.mediaUrl &&
               msg.mimetype &&
               !msg.mimetype.startsWith('image/') &&

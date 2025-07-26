@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/store';
 import { Modal as AntdModal } from 'antd';
+import { LoadingButton, useLoading } from '@/components/common';
 
 export type UserProfile = {
   _id: string;
@@ -34,7 +35,7 @@ export default function UserProfileModal({
 }: UserProfileModalProps) {
   const [form] = Form.useForm();
   const dispatch = useDispatch();
-  const [uploading, setUploading] = useState(false);
+  const { loading: uploading, withLoading: withUpload } = useLoading();
   const reduxUser = useSelector((state: RootState) => state.userReducer.user);
   const displayUser = isCurrentUser ? reduxUser : user;
 
@@ -47,47 +48,50 @@ export default function UserProfileModal({
   // Khi mở modal, reset preview avatar
   // (Có thể dùng useEffect nếu muốn reset khi user đổi)
 
+  // Upload avatar function
+  const uploadAvatar = withUpload(async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('http://localhost:5000/upload?type=avatar', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await res.json();
+    const url = data.url;
+
+    if (typeof url === 'string') {
+      await dispatch<any>(updateUser({ avatar: url }));
+      message.success('Đổi ảnh đại diện thành công!');
+      return { url };
+    } else {
+      throw new Error('Upload trả về link không hợp lệ!');
+    }
+  });
+
   const handleAvatarChange = async (info: any) => {
     if (info.file.status === 'uploading') {
-      setUploading(true);
+      // Upload status được handle bởi withUpload
     }
     if (info.file.status === 'done') {
-      setUploading(false);
       const url = info.file.response?.url;
       if (typeof url === 'string') {
-        try {
-          await dispatch<any>(updateUser({ avatar: url }));
-          message.success('Đổi ảnh đại diện thành công!');
-        } catch (err) {
-          message.error('Cập nhật avatar thất bại!');
-        }
+        // Avatar đã được update bởi uploadAvatar function
       } else {
         message.error('Upload trả về link không hợp lệ!');
       }
     }
     if (info.file.status === 'error') {
-      setUploading(false);
-      message.error('Upload ảnh thất bại,hãy chọn lại ảnh khác hoặc thử lại sau!');
+      message.error('Upload ảnh thất bại, hãy chọn lại ảnh khác hoặc thử lại sau!');
     }
   };
 
-  // Custom upload handler dùng Redux thunk
+  // Custom upload handler
   const customRequest = async ({ file, onSuccess, onError }: any) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      // Không cần append type vào formData nữa
-      const res = await fetch('http://localhost:5000/upload?type=avatar', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      const url = data.url;
-      if (typeof url === 'string') {
-        onSuccess({ url }, file);
-      } else {
-        onError('Không lấy được url ảnh');
-      }
+      const data = await uploadAvatar(file as File);
+      onSuccess(data, file);
     } catch (err) {
       onError(err);
     }

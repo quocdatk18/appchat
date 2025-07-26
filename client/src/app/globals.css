@@ -4,6 +4,15 @@
   box-sizing: border-box;
   font-family: 'Open Sans', sans-serif;
 }
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
 li {
   list-style-type: none;
 }
@@ -49,4 +58,36 @@ li {
 }
 .ant-dropdown-menu {
   z-index: 2001 !important;
+}
+
+/* ===== Online/Offline Status Indicator ===== */
+.online-status {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  transition: all 0.2s ease;
+}
+
+.online-status.online {
+  background-color: #52c41a;
+}
+
+.online-status.offline {
+  background-color: #d9d9d9;
+}
+
+/* Small size (12px) - for sidebar */
+.online-status.small {
+  width: 12px;
+  height: 12px;
+  bottom: 2px;
+  right: 2px;
+}
+
+/* Medium size (14px) - for header */
+.online-status.medium {
+  width: 14px;
+  height: 14px;
+  bottom: 2px;
+  right: 2px;
 }

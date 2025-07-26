@@ -10,7 +10,7 @@
     padding: 8px 12px;
     border-top: 1px solid #e5e7eb;
     background-color: #ffffff;
-    gap: 8px;
+    gap: 4px;
 
     // ===== Action Buttons Row =====
     .actions {
@@ -36,7 +36,7 @@
       width: 100%;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
       .inputWrapper {
         flex: 1;
         margin-bottom: 0;
@@ -55,7 +55,7 @@
     .input {
       width: 100%;
       outline: none;
-      border: 1px solid #ccc;
+      // border: 1px solid #ccc;
       padding: 8px;
       transition: all 0.3s ease;
       &:focus {

@@ -28,6 +28,39 @@
     border: 1px solid rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(9px);
     -webkit-backdrop-filter: blur(9px);
+    position: relative;
+    overflow: hidden;
+
+    &.loading {
+      pointer-events: none;
+    }
+
+    .loadingOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      border-radius: 8px;
+
+      p {
+        color: #fff;
+        margin-top: 16px;
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      :global(.ant-spin) {
+        color: #1890ff;
+      }
+    }
 
     // Loại bỏ nền trắng khi autofill
     :global(input:-webkit-autofill),
@@ -119,6 +152,23 @@
         text-align: center;
         margin-top: 30px;
         color: #fff;
+
+        a {
+          color: #1890ff;
+          text-decoration: none;
+          transition: color 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+
+          &:hover {
+            color: #40a9ff;
+          }
+
+          &:global(.ant-spin) {
+            color: #1890ff;
+          }
+        }
       }
     }
 
@@ -138,6 +188,15 @@
     :global(.ant-input-affix-wrapper:focus-within) {
       background: transparent !important;
       box-shadow: none !important;
+    }
+
+    // ===== Disabled State =====
+    :global(.ant-input[disabled]),
+    :global(.ant-input-password[disabled]),
+    :global(.ant-select-disabled .ant-select-selector),
+    :global(.ant-checkbox-disabled) {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
     // ===== Placeholder & Prefix =====

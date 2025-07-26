@@ -2,19 +2,23 @@ import { AppDispatch, RootState } from '@/lib/store';
 import { logout } from '@/lib/store/reducer/user/userSlice';
 import { UserType } from '@/types';
 import {
-  ContactsOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
-  MessageOutlined,
+  QuestionCircleOutlined,
+  UsergroupAddOutlined,
 } from '@ant-design/icons';
 import { Dropdown, Image } from 'antd';
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import ChatListSidebar from '../chatListSidebar/ChatListSidebar';
+import CreateGroupModal from '../createGroup/CreateGroupModal';
 import styles from './Sidebar.module.scss';
 
 export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: UserType) => void }) {
   const user = useSelector((state: RootState) => state.userReducer.user);
   const dispach = useDispatch<AppDispatch>();
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+
   const handelLogout = () => {
     dispach(logout());
   };
@@ -59,11 +63,11 @@ export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: User
                 />
               </Dropdown>
             </li>
-            <li className={styles.menuItem}>
-              <MessageOutlined />
+            <li className={styles.menuItem} onClick={() => setShowCreateGroupModal(true)}>
+              <UsergroupAddOutlined />
             </li>
             <li className={styles.menuItem}>
-              <ContactsOutlined />
+              <QuestionCircleOutlined />
             </li>
           </ul>
           <ul className={styles.sidebarLeftTop}>
@@ -76,6 +80,11 @@ export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: User
           <ChatListSidebar />
         </div>
       </div>
+
+      <CreateGroupModal
+        visible={showCreateGroupModal}
+        onClose={() => setShowCreateGroupModal(false)}
+      />
     </div>
   );
 }

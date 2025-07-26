@@ -83,6 +83,18 @@ export const searchUserByEmail = createAsyncThunk<UserType | null, string, { rej
   }
 );
 
+export const searchUsers = createAsyncThunk<UserType[], string, { rejectValue: string }>(
+  'user/searchUsers',
+  async (query, { rejectWithValue }) => {
+    try {
+      const res = await axiosClient.get(`/user/search?q=${query}`);
+      return res.data || [];
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Không tìm thấy user');
+    }
+  }
+);
+
 export const handleUpload = createAsyncThunk(
   'user/handleUpload',
   async (formData: FormData, { rejectWithValue }) => {
@@ -204,6 +216,18 @@ const authSlice = createSlice({
       .addCase(searchUserByEmail.rejected, (state, action) => {
         state.loading = false;
         state.selectedUser = null;
+        state.error = action.payload as string;
+      })
+      .addCase(searchUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(searchUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        // Không cần lưu vào state vì chỉ dùng cho search tạm thời
+      })
+      .addCase(searchUsers.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload as string;
       })
       .addCase(updateUser.fulfilled, (state, action) => {

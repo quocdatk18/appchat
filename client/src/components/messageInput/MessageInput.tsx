@@ -92,27 +92,42 @@ export default function MessageInput() {
       const fileUrl = data.url; // Sửa lại dòng này
       const mimetype = data.mimetype; // lấy mimetype thực tế
       const originalName = file.name; // lấy tên file gốc
-      console.log('mimetype = ', mimetype);
 
-      let receiverId;
-      if (selectedConversation.receiver?._id) {
-        receiverId = selectedConversation.receiver._id;
-      } else if (selectedConversation.members) {
-        receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
+      // Xử lý cho cả 1-1 và nhóm chat
+      if (selectedConversation.isGroup && selectedConversation.members) {
+        // Nhóm chat: gửi file đến tất cả thành viên
+        socket.emit('send_message', {
+          fromUserId: currentUser?._id,
+          receiverId: '', // Để trống cho nhóm chat
+          conversationId: selectedConversation._id,
+          content: '',
+          type: type,
+          mediaUrl: fileUrl,
+          mimetype: mimetype,
+          originalName: originalName,
+        });
+      } else {
+        // 1-1 chat: logic cũ
+        let receiverId;
+        if (selectedConversation.receiver?._id) {
+          receiverId = selectedConversation.receiver._id;
+        } else if (selectedConversation.members) {
+          receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
+        }
+
+        if (!receiverId) return false;
+
+        socket.emit('send_message', {
+          fromUserId: currentUser?._id,
+          receiverId: receiverId,
+          conversationId: selectedConversation._id,
+          content: '',
+          type: type,
+          mediaUrl: fileUrl,
+          mimetype: mimetype,
+          originalName: originalName,
+        });
       }
-
-      if (!receiverId) return false;
-
-      socket.emit('send_message', {
-        fromUserId: currentUser?._id,
-        receiverId: receiverId,
-        conversationId: selectedConversation._id,
-        content: '',
-        type: type,
-        mediaUrl: fileUrl,
-        mimetype: mimetype, // truyền mimetype vào message
-        originalName: originalName, // truyền tên file gốc vào message
-      });
 
       return true;
     } catch (error) {
@@ -254,15 +269,28 @@ export default function MessageInput() {
 
     if (!selectedConversation) return;
 
-    let receiverId;
-    if (selectedConversation.receiver?._id) {
-      receiverId = selectedConversation.receiver._id;
-    } else if (selectedConversation.members) {
-      receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
-    }
+    // Xử lý cho cả 1-1 và nhóm chat
+    if (selectedConversation.isGroup && selectedConversation.members) {
+      // Nhóm chat: gửi tin nhắn đến tất cả thành viên
+      // Không cần receiverId cụ thể, chỉ cần conversationId
+      socket.emit('send_message', {
+        fromUserId: currentUser._id,
+        receiverId: '', // Để trống cho nhóm chat
+        conversationId: selectedConversation._id,
+        content,
+      });
+    } else {
+      // 1-1 chat: logic cũ
+      let receiverId;
+      if (selectedConversation.receiver?._id) {
+        receiverId = selectedConversation.receiver._id;
+      } else if (selectedConversation.members) {
+        receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
+      }
 
-    if (!receiverId) return;
-    sendMessageToConversation(selectedConversation._id, receiverId, content);
+      if (!receiverId) return;
+      sendMessageToConversation(selectedConversation._id, receiverId, content);
+    }
     setInput('');
   };
 
@@ -282,7 +310,6 @@ export default function MessageInput() {
           >
             <Button type="text" icon={<FileAddOutlined />} />
           </Upload>
-          <Button type="text" icon={<SmileOutlined />} />
         </div>
 
         {/* Input nằm dưới, full width */}

@@ -5,7 +5,7 @@ interface Props {
 }
 
 const LastSeenDisplay: React.FC<Props> = ({ lastSeen }) => {
-  if (!lastSeen) return <span>Không rõ</span>;
+  if (!lastSeen) return <span style={{ color: 'gray' }}>Không rõ</span>;
 
   const now = dayjs();
   const seenTime = dayjs(lastSeen);
