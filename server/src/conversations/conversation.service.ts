@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Conversation, ConversationDocument } from './conversation.schema';
@@ -60,39 +65,44 @@ export class ConversationService {
     // 🧑‍🤝‍🧑 Tạo nhóm
     const receivers = Array.isArray(receiverId) ? receiverId : [receiverId];
     const allMembers = [...new Set([userId, ...receivers])]; // Loại bỏ trùng
+
     if (allMembers.length < 3) {
       throw new Error('Nhóm phải có ít nhất 3 người');
     }
 
+    if (!groupName || !groupName.trim()) {
+      throw new Error('Tên nhóm không được để trống');
+    }
+
     const groupConversation = new this.conversationModel({
       isGroup: true,
-      name: groupName || 'Nhóm không tên',
-      members: allMembers,
-      createdBy: userId,
+      name: groupName,
+      avatar: mediaUrl || '', // Lưu avatar từ mediaUrl
+      members: allMembers.map((id) => new Types.ObjectId(id)),
+      createdBy: new Types.ObjectId(userId),
     });
 
-    return groupConversation.save();
+    const savedGroup = await groupConversation.save();
+    return savedGroup;
   }
 
   // Lấy danh sách các đoạn chat của user (sidebar, hỗ trợ cả nhóm)
   async getUserConversations(userId: string): Promise<any[]> {
     const conversations = await this.conversationModel.aggregate([
-      { $match: { members: { $in: [new Types.ObjectId(userId)] } } },
-      { $sort: { updatedAt: -1 } },
-      // Lấy last message
       {
-        $lookup: {
-          from: 'messages',
-          let: { convId: '$_id' },
-          pipeline: [
-            { $match: { $expr: { $eq: ['$conversationId', '$$convId'] } } },
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
+        $match: {
+          members: { $in: [new Types.ObjectId(userId)] },
+          // Loại bỏ conversations mà user đã xóa
+          $or: [
+            { deletedBy: { $exists: false } },
+            { deletedBy: { $nin: [userId] } },
           ],
-          as: 'lastMessage',
+          // Loại bỏ nhóm đã bị ẩn với tất cả thành viên
+          hiddenFromAll: { $ne: true },
         },
       },
-      { $unwind: { path: '$lastMessage', preserveNullAndEmptyArrays: true } },
+      { $sort: { updatedAt: -1 } },
+      // Lấy last message (sử dụng trường có sẵn thay vì lookup)
       // Lấy thông tin receiver (người còn lại) cho 1-1
       {
         $addFields: {
@@ -142,14 +152,18 @@ export class ConversationService {
           isGroup: 1,
           name: 1,
           avatar: 1,
+          createdBy: 1, // Thêm createdBy
           receiver: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
           members: 1,
           memberPreviews: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
-          lastMessage: '$lastMessage.content',
+          lastMessage: '$lastMessage',
+          lastMessageType: '$lastMessageType',
+          lastMessageSenderId: '$lastMessageSenderId',
           updatedAt: 1,
         },
       },
     ]);
+
     return conversations;
   }
 
@@ -185,9 +199,47 @@ export class ConversationService {
   async deleteConversationForUser(conversationId: string, userId: string) {
     return this.conversationModel.findByIdAndUpdate(
       conversationId,
-      { $addToSet: { deletedBy: userId } },
+      {
+        $addToSet: { deletedBy: userId },
+        $pull: { members: userId }, // Xóa user khỏi members để không nhận tin nhắn nữa
+      },
       { new: true },
     );
+  }
+
+  // Ẩn nhóm với tất cả thành viên (soft delete - chỉ admin mới được)
+  async hideGroupFromAllMembers(conversationId: string, userId: string) {
+    const conversation = await this.conversationModel.findById(conversationId);
+
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    if (!conversation.isGroup) {
+      throw new BadRequestException('Chỉ có thể ẩn nhóm chat');
+    }
+
+    // Kiểm tra quyền admin
+    if (conversation.createdBy?.toString() !== userId) {
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể ẩn nhóm');
+    }
+
+    // Ẩn nhóm với tất cả thành viên (soft delete)
+    const result = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      {
+        $set: {
+          hiddenFromAll: true,
+          hiddenAt: new Date(),
+        },
+      },
+      { new: true },
+    );
+
+    return {
+      hidden: true,
+      message: 'Đã ẩn nhóm với tất cả thành viên',
+    };
   }
 
   // Tìm kiếm hội thoại theo tên hoặc username thành viên
@@ -237,6 +289,155 @@ export class ConversationService {
       { $sort: { updatedAt: -1 } },
     ]);
     return conversations;
+  }
+
+  // Cập nhật lastMessage cho conversation
+  async updateLastMessage(
+    conversationId: string,
+    content: string,
+    type: string,
+    senderId: string,
+  ) {
+    return this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      {
+        $set: {
+          lastMessage: content,
+          lastMessageType: type,
+          lastMessageSenderId: senderId,
+          updatedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
+  }
+
+  // Thêm thành viên vào nhóm
+  async addMembersToGroup(
+    conversationId: string,
+    memberIds: string[],
+    userId: string,
+  ) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    if (!conversation.isGroup) {
+      throw new Error('Chỉ có thể thêm thành viên vào nhóm');
+    }
+
+    if (conversation.createdBy.toString() !== userId) {
+      throw new Error('Chỉ người tạo nhóm mới được thêm thành viên');
+    }
+
+    // Thêm thành viên mới
+    const newMembers = memberIds.map((id) => new Types.ObjectId(id));
+    const updatedConversation = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      {
+        $addToSet: { members: { $each: newMembers } },
+        $pull: { deletedBy: { $in: memberIds } }, // Xóa khỏi deletedBy nếu có
+      },
+      { new: true },
+    );
+
+    return updatedConversation;
+  }
+
+  // Cập nhật thông tin nhóm (chỉ người tạo mới được)
+  async updateGroup(
+    conversationId: string,
+    updateData: { name?: string; avatar?: string },
+    userId: string,
+  ) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    if (!conversation.isGroup) {
+      throw new Error('Chỉ có thể cập nhật thông tin nhóm');
+    }
+
+    if (conversation.createdBy.toString() !== userId) {
+      throw new Error('Chỉ người tạo nhóm mới được cập nhật thông tin');
+    }
+
+    const updatedConversation = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $set: updateData },
+      { new: true },
+    );
+
+    return updatedConversation;
+  }
+
+  // Xóa thành viên khỏi nhóm
+  async removeMembersFromGroup(
+    conversationId: string,
+    memberIds: string[],
+    userId: string,
+  ) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    if (!conversation.isGroup) {
+      throw new Error('Chỉ có thể xóa thành viên khỏi nhóm');
+    }
+
+    if (conversation.createdBy.toString() !== userId) {
+      throw new Error('Chỉ người tạo nhóm mới được xóa thành viên');
+    }
+
+    // Xóa thành viên khỏi nhóm
+    const memberObjectIds = memberIds.map((id) => new Types.ObjectId(id));
+    const updatedConversation = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      {
+        $pull: { members: { $in: memberObjectIds } },
+        $addToSet: { deletedBy: { $each: memberIds } }, // Thêm vào deletedBy để ẩn với họ
+      },
+      { new: true },
+    );
+
+    return updatedConversation;
+  }
+
+  // Lấy thông tin chi tiết nhóm
+  async getGroupInfo(conversationId: string, userId: string) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException('Không tìm thấy nhóm');
+    }
+
+    if (!conversation.isGroup) {
+      throw new Error('Chỉ có thể xem thông tin nhóm');
+    }
+
+    // Kiểm tra user có trong nhóm không
+    if (!conversation.members.includes(new Types.ObjectId(userId))) {
+      throw new Error('Bạn không phải thành viên nhóm này');
+    }
+
+    // Lấy thông tin chi tiết các thành viên
+    const memberDetails = await this.userModel.find(
+      { _id: { $in: conversation.members } },
+      'username nickname avatar email',
+    );
+
+    return {
+      _id: conversation._id,
+      name: conversation.name,
+      avatar: conversation.avatar,
+      createdBy: conversation.createdBy,
+      members: memberDetails,
+      memberCount: conversation.members.length,
+      createdAt: (conversation as any).createdAt,
+      updatedAt: (conversation as any).updatedAt,
+    };
   }
 }
 // tìm kiếm đoạn chat

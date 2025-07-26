@@ -54,7 +54,19 @@ export class MessageService {
       mimetype,
       originalName,
     });
-    return message.save();
+    const savedMessage = await message.save();
+
+    // Chỉ cập nhật conversation với lastMessage mới nếu có content
+    if (content.trim()) {
+      await this.conversationService.updateLastMessage(
+        conversationId,
+        content,
+        type,
+        senderId,
+      );
+    }
+
+    return savedMessage;
   }
 
   async getConversations(userId: string) {
@@ -159,5 +171,12 @@ export class MessageService {
       { $addToSet: { seenBy: userId } },
       { new: true },
     );
+  }
+
+  // Populate thông tin sender cho message
+  async populateMessageSender(messageId: string) {
+    return this.messageModel
+      .findById(messageId)
+      .populate('senderId', 'username avatar gender nickname email');
   }
 }

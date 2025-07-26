@@ -50,19 +50,7 @@ export class UserController {
   async getUserById(@Param('id') id: string) {
     return this.userService.findById(id);
   }
-  // 🔐 lấy trạng thái online của user
-  @Get(':id/status')
-  async getUserStatus(@Param('id') userId: string) {
-    const user = await this.userService.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
 
-    return {
-      isOnline: user.isOnline,
-      lastSeen: user.lastSeen,
-    };
-  }
   // 🔐 cập nhật trạng thái online của user
   @UseGuards(JwtAuthGuard)
   @Patch(':id/online')
@@ -76,7 +64,6 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @Patch('profile')
   async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
-    console.log('req.user', req.user);
     const userId = req.user._id;
     return this.userService.updateUser(userId, updateUserDto);
   }

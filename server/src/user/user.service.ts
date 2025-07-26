@@ -48,13 +48,14 @@ export class UserService {
           {
             $or: [
               { username: { $regex: query, $options: 'i' } },
+              { nickname: { $regex: query, $options: 'i' } },
               { email: { $regex: query, $options: 'i' } },
             ],
           },
           { _id: { $ne: new Types.ObjectId(currentUserId) } }, // Ép về ObjectId
         ],
       },
-      'id username avatar email',
+      'id username nickname avatar email',
     );
   }
 

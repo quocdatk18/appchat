@@ -80,4 +80,64 @@ export class ConversationController {
     const userId = req.user._id;
     return this.conversationService.deleteConversationForUser(id, userId);
   }
+
+  // 🔐 Ẩn nhóm với tất cả thành viên (chỉ admin mới được)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/hide-group')
+  async hideGroupFromAllMembers(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.conversationService.hideGroupFromAllMembers(id, userId);
+  }
+
+  // 🔐 Thêm thành viên vào nhóm
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/add-members')
+  async addMembersToGroup(
+    @Param('id') id: string,
+    @Body() body: { memberIds: string[] },
+    @Req() req,
+  ) {
+    const userId = req.user._id;
+    return this.conversationService.addMembersToGroup(
+      id,
+      body.memberIds,
+      userId,
+    );
+  }
+
+  // 🔐 Cập nhật thông tin nhóm (chỉ người tạo mới được)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/update')
+  async updateGroup(
+    @Param('id') id: string,
+    @Body() body: { name?: string; avatar?: string },
+    @Req() req,
+  ) {
+    const userId = req.user._id;
+    return this.conversationService.updateGroup(id, body, userId);
+  }
+
+  // 🔐 Xóa thành viên khỏi nhóm
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/remove-members')
+  async removeMembersFromGroup(
+    @Param('id') id: string,
+    @Body() body: { memberIds: string[] },
+    @Req() req,
+  ) {
+    const userId = req.user._id;
+    return this.conversationService.removeMembersFromGroup(
+      id,
+      body.memberIds,
+      userId,
+    );
+  }
+
+  // 🔐 Lấy thông tin chi tiết nhóm
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/group-info')
+  async getGroupInfo(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.conversationService.getGroupInfo(id, userId);
+  }
 }

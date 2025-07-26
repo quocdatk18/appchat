@@ -25,6 +25,15 @@ export class Conversation {
 
   @Prop({ type: [String], default: [] })
   deletedBy: string[]; // userId đã xoá conversation này (ẩn với họ, không xoá vật lý)
+
+  @Prop({ type: String, default: '' })
+  lastMessage: string;
+
+  @Prop({ type: String, default: 'text' })
+  lastMessageType: string;
+
+  @Prop({ type: String, default: '' })
+  lastMessageSenderId: string;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

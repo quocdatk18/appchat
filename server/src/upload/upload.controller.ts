@@ -24,7 +24,6 @@ export class UploadController {
         destination: (req: Request, file, cb) => {
           // Lấy loại upload từ body hoặc query, mặc định là 'message'
           const type = req.body.type || req.query.type || 'message';
-          console.log('Type:', req.body.type);
           // Lấy ngày hiện tại
           const date = new Date();
           const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1)
@@ -94,7 +93,6 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    console.log('Upload body:', req.body);
     try {
       if (!file) {
         throw new BadRequestException('Không nhận được file upload');
