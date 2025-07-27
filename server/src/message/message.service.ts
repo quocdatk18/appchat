@@ -5,13 +5,24 @@ import { Message, MessageDocument } from './message.schema';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ConversationService } from '../conversations/conversation.service';
 import { ConversationDocument } from '../conversations/conversation.schema';
+import { MessageGateway } from './message.gateway';
 
 @Injectable()
 export class MessageService {
+  private messageGateway: MessageGateway | null = null;
+
   constructor(
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
     private conversationService: ConversationService,
   ) {}
+
+  setMessageGateway(gateway: MessageGateway) {
+    this.messageGateway = gateway;
+  }
+
+  getMessageGateway(): MessageGateway | null {
+    return this.messageGateway;
+  }
 
   getConversationService() {
     return this.conversationService;
@@ -62,6 +73,11 @@ export class MessageService {
         conversationId,
         content,
         type,
+        senderId,
+      );
+      // Tăng unreadCount cho tất cả thành viên trừ sender
+      await this.conversationService.incrementUnreadCount(
+        conversationId,
         senderId,
       );
     }
@@ -138,30 +154,59 @@ export class MessageService {
     return this.messageModel
       .find({ conversationId: new Types.ObjectId(conversationId) })
       .sort({ createdAt: 1 })
-      .populate('senderId', 'username avatar gender nickname email'); // Thêm dòng này
+      .populate('senderId', 'username avatar gender nickname email');
   }
 
   async getUserConversations(userId: string) {
     return this.conversationService.getUserConversations(userId);
   }
 
-  // Thu hồi message (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+  // Thu hồi message (ẩn cả 2 phía)
   async recallMessage(id: string, userId: string) {
+    // Kiểm tra message có tồn tại không
+    const message = await this.messageModel.findById(id);
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    // Kiểm tra người gửi
+    if (message.senderId.toString() !== userId) {
+      throw new Error('Only sender can recall message');
+    }
+
+    // Thiết lập thời gian được thu hồi
+    const messageTime = new Date((message as any).createdAt).getTime();
+    const currentTime = new Date().getTime();
+    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    if (currentTime - messageTime > fiveMinutes) {
+      throw new Error('Cannot recall message after 5 minutes');
+    }
+
+    // Kiểm tra đã thu hồi chưa
+    if (message.recalled) {
+      throw new Error('Message already recalled');
+    }
+
     // Đánh dấu recalled, set recallAt = now
-    return this.messageModel.findByIdAndUpdate(
-      id,
-      { recalled: true, recallAt: new Date() },
-      { new: true },
-    );
+    return this.messageModel
+      .findByIdAndUpdate(
+        id,
+        { recalled: true, recallAt: new Date() },
+        { new: true },
+      )
+      .populate('senderId', 'username avatar gender nickname email');
   }
 
   // Xoá message phía người gửi (chỉ ẩn phía họ)
   async deleteMessageForUser(id: string, userId: string) {
-    return this.messageModel.findByIdAndUpdate(
-      id,
-      { $addToSet: { deletedBy: userId } },
-      { new: true },
-    );
+    return this.messageModel
+      .findByIdAndUpdate(
+        id,
+        { $addToSet: { deletedBy: userId } },
+        { new: true },
+      )
+      .populate('senderId', 'username avatar gender nickname email');
   }
 
   // Đánh dấu message đã đọc (thêm userId vào seenBy)

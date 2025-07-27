@@ -54,12 +54,25 @@ export class MessageController {
     return this.messageService.getMessagesByConversationId(conversationId);
   }
 
-  // Thu hồi message (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+  // Thu hồi message (ẩn cả 2 phía)
   @UseGuards(JwtAuthGuard)
   @Patch(':id/recall')
   async recallMessage(@Param('id') id: string, @Req() req) {
     const userId = req.user._id;
-    return this.messageService.recallMessage(id, userId);
+    const updatedMessage = await this.messageService.recallMessage(id, userId);
+
+    // Emit socket event để cập nhật realtime
+    const messageGateway = this.messageService.getMessageGateway();
+    if (messageGateway && updatedMessage) {
+      messageGateway.server
+        .to(updatedMessage.conversationId.toString())
+        .emit('message_recalled', {
+          messageId: id,
+          conversationId: updatedMessage.conversationId,
+        });
+    }
+
+    return updatedMessage;
   }
 
   // Xoá message phía người gửi (chỉ ẩn phía họ)
@@ -67,7 +80,24 @@ export class MessageController {
   @Patch(':id/delete')
   async deleteMessageForUser(@Param('id') id: string, @Req() req) {
     const userId = req.user._id;
-    return this.messageService.deleteMessageForUser(id, userId);
+    const updatedMessage = await this.messageService.deleteMessageForUser(
+      id,
+      userId,
+    );
+
+    // Emit socket event để cập nhật realtime
+    const messageGateway = this.messageService.getMessageGateway();
+    if (messageGateway && updatedMessage) {
+      messageGateway.server
+        .to(updatedMessage.conversationId.toString())
+        .emit('message_deleted', {
+          messageId: id,
+          conversationId: updatedMessage.conversationId,
+          userId: userId,
+        });
+    }
+
+    return updatedMessage;
   }
 
   // Đánh dấu message đã đọc (thêm userId vào seenBy)

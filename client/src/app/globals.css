@@ -31,6 +31,10 @@ li {
   gap: 0 !important;
 }
 
+:global(.ant-modal-wrap) {
+  overflow: hidden !important;
+}
+
 /* ===== Ant Design Dropdown Menu Custom (Zalo style) ===== */
 .ant-dropdown-menu {
   border-radius: 12px !important;

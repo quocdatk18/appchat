@@ -41,6 +41,11 @@ export class ConversationService {
       });
       if (existing) return existing;
 
+      // Chỉ tạo conversation khi có content hoặc mediaUrl
+      if (!content && !mediaUrl) {
+        throw new BadRequestException('Không thể tạo cuộc trò chuyện rỗng');
+      }
+
       // Tạo cuộc trò chuyện 1-1 mới nếu chưa có
       const newConversation = await new this.conversationModel({
         isGroup: false,
@@ -48,16 +53,14 @@ export class ConversationService {
         createdBy: userObjId,
       }).save();
 
-      // Tạo message đầu tiên nếu có content hoặc mediaUrl
-      if (content || mediaUrl) {
-        await this.messageModel.create({
-          conversationId: newConversation._id,
-          senderId: userObjId,
-          content,
-          type,
-          mediaUrl,
-        });
-      }
+      // Tạo message đầu tiên
+      await this.messageModel.create({
+        conversationId: newConversation._id,
+        senderId: userObjId,
+        content,
+        type,
+        mediaUrl,
+      });
 
       return newConversation;
     }
@@ -74,6 +77,11 @@ export class ConversationService {
       throw new Error('Tên nhóm không được để trống');
     }
 
+    // Chỉ tạo group khi có content hoặc mediaUrl
+    if (!content && !mediaUrl) {
+      throw new BadRequestException('Không thể tạo nhóm rỗng');
+    }
+
     const groupConversation = new this.conversationModel({
       isGroup: true,
       name: groupName,
@@ -83,6 +91,16 @@ export class ConversationService {
     });
 
     const savedGroup = await groupConversation.save();
+
+    // Tạo message đầu tiên cho group
+    await this.messageModel.create({
+      conversationId: savedGroup._id,
+      senderId: new Types.ObjectId(userId),
+      content,
+      type,
+      mediaUrl,
+    });
+
     return savedGroup;
   }
 
@@ -153,13 +171,28 @@ export class ConversationService {
           name: 1,
           avatar: 1,
           createdBy: 1, // Thêm createdBy
-          receiver: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
+          receiver: {
+            _id: 1,
+            username: 1,
+            avatar: 1,
+            nickname: 1,
+            email: 1,
+            gender: 1,
+          }, // thêm email và gender
           members: 1,
-          memberPreviews: { _id: 1, username: 1, avatar: 1, nickname: 1 }, // thêm nickname
+          memberPreviews: {
+            _id: 1,
+            username: 1,
+            avatar: 1,
+            nickname: 1,
+            email: 1,
+            gender: 1,
+          }, // thêm email và gender
           lastMessage: '$lastMessage',
           lastMessageType: '$lastMessageType',
           lastMessageSenderId: '$lastMessageSenderId',
           updatedAt: 1,
+          unreadCount: 1,
         },
       },
     ]);
@@ -180,7 +213,7 @@ export class ConversationService {
   async getConversationById(id: string): Promise<Conversation> {
     const conv = await this.conversationModel
       .findById(id)
-      .populate('members', 'username avatar email');
+      .populate('members', 'username avatar email isOnline');
     if (!conv) throw new NotFoundException('Không tìm thấy đoạn chat');
     return conv;
   }
@@ -291,6 +324,20 @@ export class ConversationService {
     return conversations;
   }
 
+  // Tìm conversation theo name (admin)
+  async searchConversationsByName(
+    name: string,
+  ): Promise<{ _id: string; name: string; createdBy: string | null }[]> {
+    const conversations = await this.conversationModel.find({
+      name: { $regex: name, $options: 'i' },
+    });
+    return conversations.map((c) => ({
+      _id: String(c._id),
+      name: c.name,
+      createdBy: c.createdBy ? String(c.createdBy) : null,
+    }));
+  }
+
   // Cập nhật lastMessage cho conversation
   async updateLastMessage(
     conversationId: string,
@@ -310,6 +357,41 @@ export class ConversationService {
       },
       { new: true },
     );
+  }
+
+  // Tăng unreadCount cho tất cả thành viên trừ sender
+  async incrementUnreadCount(conversationId: string, senderId: string) {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) return;
+
+    const updateData: any = {};
+    conversation.members.forEach((memberId) => {
+      const memberIdStr = memberId.toString();
+      if (memberIdStr !== senderId) {
+        const currentCount = conversation.unreadCount?.get(memberIdStr) || 0;
+        const newCount = currentCount + 1;
+        updateData[`unreadCount.${memberIdStr}`] = newCount;
+      }
+    });
+
+    const result = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $set: updateData },
+      { new: true },
+    );
+
+    return result;
+  }
+
+  // Reset unreadCount cho một user
+  async resetUnreadCount(conversationId: string, userId: string) {
+    const result = await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $set: { [`unreadCount.${userId}`]: 0 } },
+      { new: true },
+    );
+
+    return result;
   }
 
   // Thêm thành viên vào nhóm
@@ -438,6 +520,16 @@ export class ConversationService {
       createdAt: (conversation as any).createdAt,
       updatedAt: (conversation as any).updatedAt,
     };
+  }
+
+  // Phục hồi conversation (admin)
+  async restoreConversation(conversationId: string): Promise<boolean> {
+    const conversation = await this.conversationModel.findById(conversationId);
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    if (!conversation.deleted) return true; // Đã active
+    conversation.deleted = false;
+    await conversation.save();
+    return true;
   }
 }
 // tìm kiếm đoạn chat

@@ -18,10 +18,18 @@ export const fetchMessages = createAsyncThunk<
   { rejectValue: string }
 >('messages/fetchMessages', async (conversationId, thunkAPI) => {
   try {
-    const res = await axiosClient.get(`/messages/conversation/${conversationId}`);
+    const res = await axiosClient.get(`/messages/conversation/${conversationId}`, {
+      timeout: 15000, // 15s timeout cho tin nhắn
+    });
 
     return { conversationId, messages: res.data };
   } catch (error: any) {
+    if (error.code === 'ECONNABORTED') {
+      return thunkAPI.rejectWithValue('Kết nối mạng chậm, vui lòng thử lại');
+    }
+    if (!navigator.onLine) {
+      return thunkAPI.rejectWithValue('Không có kết nối mạng');
+    }
     return thunkAPI.rejectWithValue(error.response?.data?.message || 'Không thể tải tin nhắn');
   }
 });
@@ -37,10 +45,17 @@ export const sendMessage = createAsyncThunk<Message, Partial<Message>, { rejectV
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        timeout: 20000, // 20s timeout cho gửi tin nhắn
       });
 
       return response.data as Message;
     } catch (error: any) {
+      if (error.code === 'ECONNABORTED') {
+        return rejectWithValue('Kết nối mạng chậm, tin nhắn sẽ được gửi khi mạng ổn định');
+      }
+      if (!navigator.onLine) {
+        return rejectWithValue('Không có kết nối mạng, tin nhắn sẽ được gửi khi có mạng');
+      }
       return rejectWithValue(error.response?.data?.message || 'Không gửi được tin nhắn');
     }
   }
@@ -98,13 +113,42 @@ const messageSlice = createSlice({
       state.messages = action.payload;
     },
     addMessage(state, action: PayloadAction<Message>) {
-      state.messages.push(action.payload);
+      // Kiểm tra xem có tin nhắn tạm không để thay thế
+      const tempMessageIndex = state.messages.findIndex(
+        (msg) =>
+          msg._id.startsWith('temp_') &&
+          msg.content === action.payload.content &&
+          msg.senderId === action.payload.senderId
+      );
+
+      if (tempMessageIndex !== -1) {
+        // Thay thế tin nhắn tạm bằng tin nhắn thật từ server
+        state.messages[tempMessageIndex] = action.payload;
+      } else {
+        // Kiểm tra xem tin nhắn đã tồn tại chưa (tránh duplicate)
+        const existingMessageIndex = state.messages.findIndex(
+          (msg) => msg._id === action.payload._id
+        );
+
+        if (existingMessageIndex === -1) {
+          // Thêm tin nhắn mới
+          state.messages.push(action.payload);
+        }
+      }
     },
     setLoading(state, action: PayloadAction<boolean>) {
       state.loading = action.payload;
     },
     setError(state, action: PayloadAction<string | null>) {
       state.error = action.payload;
+    },
+
+    // Cập nhật message sau khi xóa hoặc thu hồi
+    updateMessage: (state, action: PayloadAction<Message>) => {
+      const index = state.messages.findIndex((msg) => msg._id === action.payload._id);
+      if (index !== -1) {
+        state.messages[index] = action.payload;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -134,16 +178,39 @@ const messageSlice = createSlice({
         state.error = action.payload || 'Không gửi được tin nhắn';
       })
 
+      .addCase(deleteMessageForUser.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(deleteMessageForUser.fulfilled, (state, action) => {
+        state.loading = false;
         // Ẩn message khỏi state (ẩn với user)
         state.messages = state.messages.filter((m) => m._id !== action.payload);
       })
-      .addCase(recallMessage.fulfilled, (state, action) => {
-        // Đánh dấu message đã thu hồi (ẩn cả 2 phía)
-        state.messages = state.messages.map((m) =>
-          m._id === action.payload ? { ...m, recalled: true } : m
-        );
+      .addCase(deleteMessageForUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to delete message';
       })
+
+      .addCase(recallMessage.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(recallMessage.fulfilled, (state, action) => {
+        state.loading = false;
+        // Đánh dấu message đã thu hồi (ẩn cả 2 phía)
+        const index = state.messages.findIndex((m) => m._id === action.payload);
+        if (index !== -1) {
+          state.messages[index] = {
+            ...state.messages[index],
+            recalled: true,
+            content: '[Tin nhắn đã được thu hồi]',
+          };
+        }
+      })
+      .addCase(recallMessage.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to recall message';
+      })
+
       .addCase(markMessageSeen.fulfilled, (state, action) => {
         // Thêm userId vào seenBy của message
         state.messages = state.messages.map((m) =>
@@ -157,6 +224,7 @@ const messageSlice = createSlice({
 
 // ───────────────────────────────────────────────
 // 📦 Export reducer và actions
-export const { addMessage, setMessages, setLoading, setError } = messageSlice.actions;
+export const { setMessages, addMessage, setLoading, setError, updateMessage } =
+  messageSlice.actions;
 const messageReducer = messageSlice.reducer;
 export default messageReducer;

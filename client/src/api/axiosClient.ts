@@ -3,6 +3,7 @@ import axios from 'axios';
 // ===== Khởi tạo axiosClient với baseURL động =====
 const axiosClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+  timeout: 30000, // 30s timeout mặc định
 });
 
 // ===== Interceptor: Tự động gắn token vào header =====

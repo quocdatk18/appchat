@@ -43,6 +43,11 @@ public/uploads/
 uploads/
 
 # =========================
+# Admin scripts (contain sensitive data)
+server/scripts/
+scripts/
+
+# =========================
 # Misc
 coverage/
 .cache/

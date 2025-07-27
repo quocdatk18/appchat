@@ -9,13 +9,11 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ConversationModule } from './conversations/conversation.module';
 import { UploadModule } from './upload/upload.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads',
-    }),
+    // Static files được handle bởi Express static trong main.ts
     ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -31,5 +29,6 @@ import { UploadModule } from './upload/upload.module';
     ConversationModule,
     UploadModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

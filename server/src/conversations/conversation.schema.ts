@@ -26,6 +26,9 @@ export class Conversation {
   @Prop({ type: [String], default: [] })
   deletedBy: string[]; // userId đã xoá conversation này (ẩn với họ, không xoá vật lý)
 
+  @Prop({ type: Boolean, default: false })
+  deleted: boolean;
+
   @Prop({ type: String, default: '' })
   lastMessage: string;
 
@@ -34,6 +37,9 @@ export class Conversation {
 
   @Prop({ type: String, default: '' })
   lastMessageSenderId: string;
+
+  @Prop({ type: Map, of: Number, default: {} })
+  unreadCount: Map<string, number>; // userId -> số tin nhắn chưa đọc
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

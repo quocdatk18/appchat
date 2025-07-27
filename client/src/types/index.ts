@@ -7,6 +7,8 @@ export interface UserType {
   avatar: string;
   online: boolean;
   nickname?: string;
+  email?: string;
+  gender?: string;
 }
 
 export interface AuthState {
@@ -39,6 +41,9 @@ export interface Message {
   mimetype?: string; // loại file thực tế (image/png, video/mp4, ...)
   originalName?: string; // tên file gốc
   seenBy?: string[]; // userId đã xem message này
+  deletedBy?: string[]; // userId đã xoá message này (chỉ ẩn phía họ)
+  recalled?: boolean; // true nếu đã thu hồi
+  recallAt?: string; // thời điểm thu hồi
 }
 
 export interface MessageState {
@@ -61,6 +66,7 @@ export interface Conversation {
   updatedAt?: string;
   deletedBy?: string[]; // userId đã xoá conversation này (ẩn với họ)
   createdBy?: string; // userId người tạo nhóm
+  unreadCount?: { [userId: string]: number }; // số tin nhắn chưa đọc cho từng user
 }
 
 export interface ConversationState {

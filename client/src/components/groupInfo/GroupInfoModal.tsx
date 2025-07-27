@@ -1,25 +1,28 @@
 'use client';
+import { LoadingButton, LoadingOverlay, useLoading } from '@/components/common';
 import { AppDispatch, RootState } from '@/lib/store';
 import {
   getGroupInfo,
-  updateGroup,
-  removeMembersFromGroup,
   hideGroupFromAllMembers,
+  removeMembersFromGroup,
+  updateGroup,
+  createConversation,
+  setSelectedConversation,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import { UserType } from '@/types';
 import {
-  UserOutlined,
-  CrownOutlined,
   CameraOutlined,
-  UsergroupAddOutlined,
+  CrownOutlined,
   DeleteOutlined,
+  UsergroupAddOutlined,
+  UserOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
-import { Avatar, Button, Modal, List, message, Upload, Input } from 'antd';
-import { useState, useEffect, useCallback } from 'react';
+import { Avatar, Button, List, message, Modal, Upload } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import styles from './GroupInfoModal.module.scss';
 import AddMembersModal from '../addMembers/AddMembersModal';
-import { LoadingOverlay, LoadingButton, useLoading } from '@/components/common';
+import styles from './GroupInfoModal.module.scss';
 
 interface GroupInfoModalProps {
   visible: boolean;
@@ -39,12 +42,9 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
   const [removingMembers, setRemovingMembers] = useState<string[]>([]);
   const [isLoadingGroupInfo, setIsLoadingGroupInfo] = useState(false);
 
-  // Sử dụng useLoading hooks
-  const { loading, withLoading } = useLoading();
   const { loading: uploading, withLoading: withUpload } = useLoading();
   const { loading: deletingGroup, withLoading: withDeleteGroup } = useLoading();
 
-  // Lấy thông tin thành viên từ API - memo hóa để tránh re-render
   const fetchGroupInfo = useCallback(async () => {
     setIsLoadingGroupInfo(true);
     try {
@@ -68,7 +68,6 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     }
   }, [visible, selectedConversation, conversationId, fetchGroupInfo]);
 
-  // Tạm thời dùng member đầu tiên làm admin nếu createdBy undefined
   const isCreator =
     selectedConversation?.createdBy === currentUser?._id ||
     (selectedConversation?.members && selectedConversation.members[0] === currentUser?._id);
@@ -77,24 +76,19 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     (member) =>
       member._id === selectedConversation?.createdBy ||
       member._id === groupInfo?.createdBy ||
-      member._id === selectedConversation?.members?.[0] // Fallback cho member đầu tiên
+      member._id === selectedConversation?.members?.[0]
   );
 
-  // Hàm xóa thành viên
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     try {
       setRemovingMembers((prev) => [...prev, memberId]);
-
       await dispatch(
         removeMembersFromGroup({
           conversationId,
           memberIds: [memberId],
         })
       ).unwrap();
-
       message.success(`Đã xóa ${memberName} khỏi nhóm`);
-
-      // Refresh lại danh sách thành viên
       const result = await dispatch(getGroupInfo(conversationId));
       if (getGroupInfo.fulfilled.match(result)) {
         if (result.payload.members) {
@@ -109,13 +103,12 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     }
   };
 
-  // Hàm ẩn nhóm với tất cả thành viên
   const handleHideGroup = withDeleteGroup(async () => {
     Modal.confirm({
-      title: 'Ẩn nhóm',
+      title: 'Xoá nhóm',
       content:
-        'Bạn có chắc chắn muốn ẩn nhóm này? Nhóm sẽ bị ẩn với tất cả thành viên và không thể khôi phục.',
-      okText: 'Ẩn nhóm',
+        'Bạn có chắc chắn muốn xoá nhóm này? Nhóm sẽ bị xoá và bạn có thể gửi yêu cầu khôi phục trong 30 ngày.',
+      okText: 'Xoá nhóm',
       cancelText: 'Hủy',
       okType: 'danger',
       onOk: async () => {
@@ -130,20 +123,21 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     });
   });
 
-  // Upload avatar function
   const uploadAvatar = withUpload(async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch('http://localhost:5000/upload?type=avatar', {
-      method: 'POST',
-      body: formData,
-    });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/upload?type=avatar`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
 
     if (response.ok) {
       const data = await response.json();
       const url = data.url;
-
       await dispatch(updateGroup({ conversationId, avatar: url }));
       message.success('Đổi avatar nhóm thành công!');
       return data;
@@ -151,6 +145,29 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
       throw new Error('Upload failed');
     }
   });
+
+  const userStatuses = useSelector((state: RootState) => state.userStatusReducer.statuses);
+  const conversations = useSelector((state: RootState) => state.conversationReducer.conversations);
+
+  // Hàm mở conversation với user
+  const handleMessageUser = (user: UserType) => {
+    // Tìm conversation hiện có
+    const existingConversation = conversations.find(
+      (conv) => !conv.isGroup && conv.receiver?._id === user._id
+    );
+
+    if (existingConversation) {
+      // Nếu đã có conversation, chọn nó
+      dispatch(setSelectedConversation(existingConversation));
+    } else {
+      // Chỉ set selectedUser, không tạo conversation ngay
+      // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
+      dispatch(setSelectedConversation(null));
+    }
+
+    // Đóng modal
+    onClose();
+  };
 
   return (
     <Modal
@@ -162,12 +179,19 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
           Đóng
         </Button>,
       ]}
-      width={500}
-      destroyOnHidden
+      centered
+      styles={{
+        body: {
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
+        },
+      }}
     >
       <LoadingOverlay loading={isLoadingGroupInfo} text="Đang tải thông tin...">
         <div className={styles.groupInfoModal}>
-          {/* Thông tin nhóm */}
+          {/* Header */}
           <div className={styles.groupHeader}>
             <div className={styles.avatarSection}>
               {isCreator ? (
@@ -181,9 +205,6 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                       message.error('Đổi avatar thất bại!');
                       onError?.(error as Error);
                     }
-                  }}
-                  onChange={(info) => {
-                    // Upload status được handle bởi withUpload
                   }}
                   showUploadList={false}
                   accept="image/*"
@@ -234,7 +255,7 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
             </div>
           </div>
 
-          {/* Actions cho admin */}
+          {/* Actions */}
           {isCreator && (
             <div className={styles.adminActions}>
               <Button
@@ -249,9 +270,10 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
           )}
 
           {/* Danh sách thành viên */}
-          <div className={styles.membersList}>
+          <div className={styles.membersListWrapper}>
             <h4>Thành viên ({groupMembers.length})</h4>
             <List
+              className={styles.scrollableList}
               dataSource={groupMembers}
               renderItem={(member) => {
                 const memberRole =
@@ -260,35 +282,61 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                   member._id === selectedConversation?.members?.[0]
                     ? 'Quản trị viên'
                     : 'Thành viên';
+                const isOnline = userStatuses[member._id]?.isOnline;
 
                 return (
                   <List.Item
                     key={member._id}
-                    actions={
+                    actions={[
+                      // Icon nhắn tin cho tất cả thành viên (trừ chính mình)
+                      member._id !== currentUser?._id && (
+                        <Button
+                          key="message"
+                          type="text"
+                          icon={<MessageOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMessageUser(member);
+                          }}
+                          title="Nhắn tin"
+                        />
+                      ),
+                      // Icon xóa chỉ cho admin (trừ chính mình và admin)
                       isCreator &&
-                      member._id !== currentUser?._id &&
-                      member._id !== selectedConversation?.createdBy &&
-                      member._id !== groupInfo?.createdBy
-                        ? [
-                            <LoadingButton
-                              key="remove"
-                              type="text"
-                              danger
-                              icon={<DeleteOutlined />}
-                              loading={removingMembers.includes(member._id)}
-                              onClick={() =>
-                                handleRemoveMember(member._id, member.nickname || member.username)
-                              }
-                              className={styles.removeMemberBtn}
-                            >
-                              Xóa
-                            </LoadingButton>,
-                          ]
-                        : undefined
-                    }
+                        member._id !== currentUser?._id &&
+                        member._id !== selectedConversation?.createdBy &&
+                        member._id !== groupInfo?.createdBy && (
+                          <LoadingButton
+                            key="remove"
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            loading={removingMembers.includes(member._id)}
+                            onClick={() =>
+                              handleRemoveMember(member._id, member.nickname || member.username)
+                            }
+                            className={styles.removeMemberBtn}
+                          >
+                            Xóa
+                          </LoadingButton>
+                        ),
+                    ].filter(Boolean)}
                   >
                     <List.Item.Meta
-                      avatar={<Avatar src={member.avatar} icon={<UserOutlined />} />}
+                      avatar={
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <Avatar src={member.avatar} icon={<UserOutlined />} />
+                          <span
+                            className={`online-status ${isOnline ? 'online' : 'offline'} small`}
+                            style={{
+                              position: 'absolute',
+                              bottom: '2px',
+                              right: '2px',
+                              zIndex: 2,
+                            }}
+                          />
+                        </div>
+                      }
                       title={member.nickname || member.username}
                       description={memberRole}
                     />
@@ -298,7 +346,7 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
             />
           </div>
 
-          {/* Nút ẩn nhóm cho admin */}
+          {/* Nút xóa nhóm */}
           {isCreator && (
             <div className={styles.deleteGroupSection}>
               <LoadingButton
@@ -309,7 +357,7 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                 onClick={handleHideGroup}
                 className={styles.deleteGroupBtn}
               >
-                Ẩn nhóm với tất cả thành viên
+                Xoá nhóm
               </LoadingButton>
             </div>
           )}
@@ -321,6 +369,7 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
         visible={showAddMembersModal}
         onClose={() => setShowAddMembersModal(false)}
         conversationId={conversationId}
+        existingMemberIds={groupMembers.map((member) => member._id)}
       />
     </Modal>
   );

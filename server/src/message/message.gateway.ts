@@ -30,7 +30,10 @@ export class MessageGateway
     private readonly messageService: MessageService,
     private readonly userService: UserService,
     private readonly conversationService: ConversationService,
-  ) {}
+  ) {
+    // Set gateway reference to service
+    this.messageService.setMessageGateway(this);
+  }
 
   server: Server;
 
@@ -221,6 +224,12 @@ export class MessageGateway
         { content, type, mediaUrl, mimetype, originalName },
       );
 
+      // Tăng unreadCount cho tất cả thành viên trừ sender
+      await this.conversationService.incrementUnreadCount(
+        conversationId,
+        fromUserId,
+      );
+
       // Populate thông tin sender để frontend có thể hiển thị tên
       const populatedMessage = await this.messageService.populateMessageSender(
         (newMessage as any)._id,
@@ -242,6 +251,24 @@ export class MessageGateway
 
       // Emit đến room theo conversationId (tất cả thành viên đều nhận)
       this.server.to(conversationId).emit('receive_message', fullPayload);
+
+      // Emit unreadCount update cho tất cả thành viên trừ sender
+      conversation.members.forEach((memberId) => {
+        // Đảm bảo memberId là string
+        const memberIdStr =
+          typeof memberId === 'object' && memberId._id
+            ? memberId._id.toString()
+            : memberId.toString();
+
+        if (memberIdStr !== fromUserId) {
+          this.server.to(memberIdStr).emit('unread_count_updated', {
+            conversationId,
+            userId: memberIdStr,
+            count: 1, // Chỉ tăng 1
+            increment: true, // Đánh dấu là tăng
+          });
+        }
+      });
     } catch (error) {
       console.error('Lỗi khi gửi tin nhắn:', error);
     }

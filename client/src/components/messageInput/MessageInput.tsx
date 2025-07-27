@@ -19,7 +19,9 @@ import {
   createConversation,
   setSelectedConversation,
   setSelectedUser,
+  updateUnreadCount,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
+import { addMessage } from '@/lib/store/reducer/message/MessageSlice';
 
 const allowedExts = [
   'jpg',
@@ -62,6 +64,10 @@ export default function MessageInput() {
   ) => {
     if (!currentUser) return;
 
+    // TẠM THỜI TẮT tin nhắn tạm để tránh duplicate
+    // Tin nhắn sẽ được hiển thị khi nhận từ server
+
+    // Emit qua socket
     socket.emit('send_message', {
       fromUserId: currentUser._id,
       receiverId: receiverId,
@@ -72,17 +78,20 @@ export default function MessageInput() {
 
   // Hàm chung để upload file và gửi message
   const uploadAndSendFile = async (file: File, type: 'image' | 'video' | 'file') => {
-    if (!currentUser || !selectedConversation) return false;
+    if (!currentUser) return false;
 
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', 'message');
 
-      const res = await fetch('http://localhost:5000/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
       if (!res.ok) {
         throw new Error('Upload failed');
@@ -92,6 +101,33 @@ export default function MessageInput() {
       const fileUrl = data.url; // Sửa lại dòng này
       const mimetype = data.mimetype; // lấy mimetype thực tế
       const originalName = file.name; // lấy tên file gốc
+
+      // Nếu không có selectedConversation nhưng có selectedUser, tạo conversation mới
+      if (!selectedConversation && selectedUser) {
+        try {
+          const resultAction = await dispatch(
+            createConversation({
+              receiverId: selectedUser._id,
+              content: '',
+              type: type,
+              mediaUrl: fileUrl,
+            })
+          );
+          const newConversation = resultAction.payload as any;
+          if (newConversation && newConversation._id) {
+            dispatch(setSelectedConversation(newConversation));
+            dispatch(setSelectedUser(null));
+            // Không cần gửi lại vì message đã được tạo trong createConversation
+          }
+          return true;
+        } catch (err) {
+          console.error('Lỗi tạo conversation:', err);
+          return false;
+        }
+      }
+
+      // Nếu không có selectedConversation và selectedUser, không thể gửi
+      if (!selectedConversation) return false;
 
       // Xử lý cho cả 1-1 và nhóm chat
       if (selectedConversation.isGroup && selectedConversation.members) {
@@ -257,11 +293,12 @@ export default function MessageInput() {
         if (newConversation && newConversation._id) {
           dispatch(setSelectedConversation(newConversation));
           dispatch(setSelectedUser(null));
-          sendMessageToConversation(newConversation._id, selectedUser._id, content);
+          // Không cần gửi lại vì message đã được tạo trong createConversation
         }
         setInput('');
         return;
       } catch (err) {
+        console.error('Lỗi tạo conversation:', err);
         setInput('');
         return;
       }

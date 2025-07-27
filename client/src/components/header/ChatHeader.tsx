@@ -1,5 +1,6 @@
 import LastSeenDisplay from '@/lib/format';
 import { AppDispatch, RootState } from '@/lib/store';
+import { getUserById } from '@/lib/store/reducer/user/userSlice';
 
 import { PhoneOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { Avatar, Button } from 'antd';
@@ -72,25 +73,46 @@ export default function ChatHeader({ onAvatarClick }: { onAvatarClick?: (user: a
   return (
     <div className={styles.chatHeader}>
       <div className={styles.left}>
-        <div className={styles.avatarContainer}>
+        <div
+          className={styles.avatarContainer}
+          style={{ position: 'relative', display: 'inline-block' }}
+        >
           <Avatar
             src={displayAvatar || '/avtDefault.png'}
             size="large"
-            onClick={() => {
+            onClick={async () => {
               if (isGroup) {
                 setShowGroupInfoModal(true);
               } else if (onAvatarClick && displayUser) {
-                onAvatarClick(displayUser);
+                // Fetch đầy đủ thông tin user trước khi mở profile
+                try {
+                  const result = await dispatch(getUserById(displayUser._id));
+                  if (getUserById.fulfilled.match(result)) {
+                    onAvatarClick(result.payload);
+                  } else {
+                    onAvatarClick(displayUser);
+                  }
+                } catch (error) {
+                  onAvatarClick(displayUser);
+                }
               }
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: 'pointer', display: 'block' }}
           />
           {/* Hiển thị trạng thái online cho chat 1-1 */}
           {!isGroup && userStatus && (
-            <div className={`online-status medium ${userStatus.isOnline ? 'online' : 'offline'}`} />
+            <span
+              className={`online-status medium ${userStatus.isOnline ? 'online' : 'offline'}`}
+              style={{ position: 'absolute', bottom: 2, right: 2, zIndex: 2 }}
+            />
           )}
           {/* Hiển thị dấu xanh cho nhóm khi có thành viên online */}
-          {isGroup && onlineMembersCount > 0 && <div className="online-status medium online" />}
+          {isGroup && onlineMembersCount > 0 && (
+            <span
+              className="online-status medium online"
+              style={{ position: 'absolute', bottom: 2, right: 2, zIndex: 2 }}
+            />
+          )}
         </div>
         <div className={styles.info}>
           <div className={styles.name}>{displayName}</div>

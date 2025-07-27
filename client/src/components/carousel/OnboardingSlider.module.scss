@@ -1,80 +1,86 @@
-// ===== Onboarding Slider Layout =====
 .onboardingContainer {
-  width: 100%;
-  height: 100%;
+  flex: 1;
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+
+  :global(.ant-carousel) {
+    height: 100%;
+  }
+
+  :global(.ant-carousel .slick-list),
+  :global(.ant-carousel .slick-track),
+  :global(.ant-carousel .slick-slide) {
+    height: 100%;
+  }
+
+  :global(.ant-carousel .slick-dots) {
+    bottom: 12%;
+    li button {
+      background: rgba(255, 255, 255, 0.7);
+    }
+    li.slick-active button {
+      background: #fff;
+      width: 24px;
+      border-radius: 8px;
+    }
+  }
+}
+
+.onboardingSlider {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  min-height: 400px;
-  min-width: 400px;
+}
 
-  .carousel {
-    width: 100%;
-    max-width: 600px;
-    margin: 0 auto;
-    background: none;
-    box-shadow: none;
-  }
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+}
 
-  .slide {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    width: 100%;
-  }
-
-  .slideContent {
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-    text-align: center;
-    padding: 32px 16px 0 16px;
-    background: none;
-    border-radius: 16px;
-    box-shadow: none;
-  }
-
-  .image {
-    width: 180px;
-    height: 140px;
-    object-fit: contain;
-    margin: 0 auto 24px auto;
-    display: block;
-  }
+.onboardingContent {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #fff;
+  padding: 0 20px;
+  z-index: 2;
 
   .title {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #222;
+    font-size: 2rem;
+    font-weight: bold;
     margin-bottom: 12px;
   }
 
   .desc {
-    font-size: 1rem;
-    color: #444;
-    margin-bottom: 24px;
-    opacity: 0.85;
+    font-size: 1.2rem;
+    opacity: 0.9;
   }
+}
 
-  .actions {
-    display: flex;
-    justify-content: center;
-    margin-top: 16px;
-  }
+.actions {
+  position: absolute;
+  bottom: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
 
-  // ===== Ant Design Carousel custom =====
-  :global(.ant-carousel .slick-dots li button) {
-    background: #b3b3b3;
-  }
-  :global(.ant-carousel .slick-dots li.slick-active button) {
-    background: #1890ff;
-  }
-  :global(.ant-carousel .slick-arrow) {
-    color: #1890ff;
-    font-size: 22px;
-    z-index: 2;
+  button {
+    width: 30%;
+    height: 48px;
+    font-size: 1.2rem;
+    border-radius: 8px;
   }
 }

@@ -2,6 +2,7 @@ import axiosClient from '@/api/axiosClient';
 import { AuthState, UserType } from '@/types';
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { clearAllUserStatus } from '../userStatus/userStatusSlice';
 
 const initialState: AuthState & { selectedUser?: UserType | null } = {
   user: null,
@@ -21,7 +22,7 @@ export const handleLogin = createAsyncThunk(
       const { data } = await axiosClient.post('/auth/login', credentials);
 
       await axios.patch(
-        `http://localhost:5000/user/${data.user._id}/online`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/user/${data.user._id}/online`,
         {
           isOnline: false,
         },
@@ -83,6 +84,21 @@ export const searchUserByEmail = createAsyncThunk<UserType | null, string, { rej
   }
 );
 
+export const getUserById = createAsyncThunk<UserType | null, string, { rejectValue: string }>(
+  'user/getUserById',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axiosClient.get(`/user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.data || null;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Không tìm thấy user');
+    }
+  }
+);
+
 export const searchUsers = createAsyncThunk<UserType[], string, { rejectValue: string }>(
   'user/searchUsers',
   async (query, { rejectWithValue }) => {
@@ -122,6 +138,60 @@ export const updateUser = createAsyncThunk<
   }
 });
 
+// Đổi mật khẩu
+export const changePassword = createAsyncThunk<
+  any,
+  { currentPassword: string; newPassword: string },
+  { rejectValue: string }
+>('user/changePassword', async (passwordData, { rejectWithValue }) => {
+  try {
+    const res = await axiosClient.post('/user/change-password', passwordData);
+    return res.data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || 'Change password failed');
+  }
+});
+
+// Yêu cầu đổi email - gửi yêu cầu qua email support
+export const requestChangeEmail = createAsyncThunk<
+  any,
+  { currentPassword: string; newEmail: string; reason: string },
+  { rejectValue: string }
+>('user/requestChangeEmail', async (emailData, { rejectWithValue }) => {
+  try {
+    const res = await axiosClient.post('/user/request-change-email', emailData);
+    return res.data;
+  } catch (err: any) {
+    return rejectWithValue(err.response?.data?.message || 'Request change email failed');
+  }
+});
+
+// Quên mật khẩu - sinh mật khẩu mới và gửi về email
+export const forgotPassword = createAsyncThunk<any, { email: string }, { rejectValue: string }>(
+  'user/forgotPassword',
+  async (emailData, { rejectWithValue }) => {
+    try {
+      const res = await axiosClient.post('/user/forgot-password', emailData);
+      return res.data;
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || 'Forgot password failed');
+    }
+  }
+);
+
+export const sendSupportRequest = createAsyncThunk<
+  any,
+  { subject: string; message: string; userEmail: string; username: string },
+  { rejectValue: string }
+>('user/sendSupportRequest', async (supportData, { rejectWithValue }) => {
+  try {
+    const res = await axiosClient.post('/user/support-request', supportData);
+    return res.data;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.message || 'Gửi yêu cầu hỗ trợ thất bại');
+  }
+});
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -139,6 +209,12 @@ const authSlice = createSlice({
       state.isOnline = false;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+
+      // Disconnect socket khi logout
+      if (typeof window !== 'undefined') {
+        const socket = require('@/api/socket').default;
+        socket.disconnect();
+      }
     },
     loadUserFromStorage: (state) => {
       const token = localStorage.getItem('token');
@@ -160,30 +236,42 @@ const authSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    // Login
     builder
       .addCase(handleLogin.pending, (state) => {
         state.loading = true;
-        state.error = '';
+        state.error = null;
       })
       .addCase(handleLogin.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.isAuthenticated = true;
+        state.isOnline = true;
         localStorage.setItem('token', action.payload.token);
-        localStorage.setItem('user', JSON.stringify(action.payload.user)); // Thêm dòng này
+        localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
       .addCase(handleLogin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      });
+
+    // Register
+    builder
+      .addCase(handleRegister.pending, (state) => {
+        state.loading = true;
+        state.error = null;
       })
-      .addCase(handleRegister.fulfilled, (state, action) => {
+      .addCase(handleRegister.fulfilled, (state) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.isAuthenticated = true;
-        localStorage.setItem('token', action.payload.token);
       })
+      .addCase(handleRegister.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Check Auth
+    builder
       .addCase(checkAuth.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -191,51 +279,84 @@ const authSlice = createSlice({
       .addCase(checkAuth.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload;
-        state.initialized = true;
         state.isAuthenticated = true;
-        localStorage.setItem('user', JSON.stringify(action.payload));
-      })
-      .addCase(checkAuth.rejected, (state, action) => {
-        state.loading = false;
         state.initialized = true;
-        state.user = null;
+      })
+      .addCase(checkAuth.rejected, (state) => {
+        state.loading = false;
         state.isAuthenticated = false;
-        state.token = null;
-        state.error = action.payload as string;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      })
-      .addCase(searchUserByEmail.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(searchUserByEmail.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedUser = action.payload;
-      })
-      .addCase(searchUserByEmail.rejected, (state, action) => {
-        state.loading = false;
-        state.selectedUser = null;
-        state.error = action.payload as string;
-      })
-      .addCase(searchUsers.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(searchUsers.fulfilled, (state, action) => {
-        state.loading = false;
-        // Không cần lưu vào state vì chỉ dùng cho search tạm thời
-      })
-      .addCase(searchUsers.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(updateUser.fulfilled, (state, action) => {
-        if (state.user && action.payload) {
-          state.user = { ...state.user, ...action.payload };
-          localStorage.setItem('user', JSON.stringify(state.user));
-        }
+        state.initialized = true;
       });
+
+    // Update User
+    builder.addCase(updateUser.fulfilled, (state, action) => {
+      state.user = action.payload;
+      localStorage.setItem('user', JSON.stringify(action.payload));
+    });
+
+    // Change Password
+    builder
+      .addCase(changePassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(changePassword.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(changePassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Request Change Email
+    builder
+      .addCase(requestChangeEmail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(requestChangeEmail.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(requestChangeEmail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Forgot Password
+    builder
+      .addCase(forgotPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(forgotPassword.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(forgotPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Send Support Request
+    builder
+      .addCase(sendSupportRequest.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(sendSupportRequest.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(sendSupportRequest.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Get User By ID
+    builder.addCase(getUserById.fulfilled, (state, action) => {
+      state.selectedUser = action.payload;
+    });
+    builder.addCase(getUserById.rejected, (state, action) => {
+      state.error = action.payload as string;
+    });
   },
 });
 

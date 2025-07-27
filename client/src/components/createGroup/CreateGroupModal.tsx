@@ -5,11 +5,12 @@ import { createConversation } from '@/lib/store/reducer/conversationSlice/conver
 import { searchUsers } from '@/lib/store/reducer/user/userSlice';
 import { UserType } from '@/types';
 import { CameraOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Input, Modal, List, Avatar, Checkbox, message, Upload } from 'antd';
+import { Button, Input, Modal, List, Avatar, Checkbox, message, Upload, Skeleton } from 'antd';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useDebounce } from '@/hooks/hookCustoms';
-import { LoadingOverlay, LoadingButton, useLoading } from '@/components/common';
+import { LoadingButton, useLoading } from '@/components/common';
+import { useSkeletonLoading } from '@/hooks/useSkeletonLoading';
 import styles from './CreateGroupModal.module.scss';
 
 interface CreateGroupModalProps {
@@ -17,6 +18,7 @@ interface CreateGroupModalProps {
   onClose: () => void;
   mode?: 'create' | 'add-members';
   onSuccess?: (selectedUsers: string[]) => void;
+  existingMemberIds?: string[]; // Thêm prop để truyền danh sách thành viên hiện tại
 }
 
 export default function CreateGroupModal({
@@ -24,6 +26,7 @@ export default function CreateGroupModal({
   onClose,
   mode = 'create',
   onSuccess,
+  existingMemberIds = [],
 }: CreateGroupModalProps) {
   const dispatch = useDispatch<AppDispatch>();
   const currentUser = useSelector((state: RootState) => state.userReducer.user);
@@ -34,11 +37,11 @@ export default function CreateGroupModal({
   const [searchText, setSearchText] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<UserType[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Sử dụng useLoading hooks
   const { loading, withLoading } = useLoading();
   const { loading: uploading, withLoading: withUpload } = useLoading();
+  const { loading: isSearching, withLoading: withSearch } = useLoading();
 
   // Lấy danh sách user từ conversations (đã chat trước đó)
   const availableUsers = useMemo(() => {
@@ -59,34 +62,25 @@ export default function CreateGroupModal({
   }, [conversations, currentUser?._id]);
 
   // Hàm tìm kiếm user từ Redux - memo hóa để tránh re-render
-  const handleSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
+  const handleSearch = withSearch(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-      setIsSearching(true);
-      try {
-        const result = await dispatch(searchUsers(query));
+    const result = await dispatch(searchUsers(query));
 
-        if (searchUsers.fulfilled.match(result)) {
-          const data = result.payload;
+    if (searchUsers.fulfilled.match(result)) {
+      const data = result.payload;
 
-          // Chỉ lọc bỏ current user, cho phép hiển thị user từ search ngay cả khi đã có trong conversations
-          const filteredData = data.filter((user: UserType) => {
-            const isNotCurrentUser = user._id !== currentUser?._id;
-            return isNotCurrentUser;
-          });
-          setSearchResults(filteredData);
-        }
-      } finally {
-        setIsSearching(false);
-      }
-    },
-    [dispatch, currentUser?._id]
-  );
+      // Chỉ lọc bỏ current user, cho phép hiển thị user từ search ngay cả khi đã có trong conversations
+      const filteredData = data.filter((user: UserType) => {
+        const isNotCurrentUser = user._id !== currentUser?._id;
+        return isNotCurrentUser;
+      });
+      setSearchResults(filteredData);
+    }
+  });
 
   // Debounce search function - gọi ở top-level
   const debouncedSearch = useDebounce(handleSearch, 300);
@@ -96,7 +90,6 @@ export default function CreateGroupModal({
       debouncedSearch(searchText);
     } else {
       setSearchResults([]);
-      setIsSearching(false);
     }
   }, [searchText]);
 
@@ -107,14 +100,21 @@ export default function CreateGroupModal({
   );
 
   const filteredUsers = useMemo(() => {
-    if (!searchText.trim()) return allUsers;
+    let users = allUsers;
 
-    return allUsers.filter(
+    // Lọc bỏ những người đã có trong nhóm (chỉ trong mode add-members)
+    if (mode === 'add-members' && existingMemberIds.length > 0) {
+      users = users.filter((user) => !existingMemberIds.includes(user._id));
+    }
+
+    if (!searchText.trim()) return users;
+
+    return users.filter(
       (user) =>
         user.username.toLowerCase().includes(searchText.toLowerCase()) ||
         user.nickname?.toLowerCase().includes(searchText.toLowerCase())
     );
-  }, [allUsers, searchText]);
+  }, [allUsers, searchText, mode, existingMemberIds]);
 
   const handleUserToggle = useCallback((userId: string) => {
     setSelectedUsers((prev) =>
@@ -156,7 +156,7 @@ export default function CreateGroupModal({
         receiverId: selectedUsers,
         isGroup: true,
         groupName: groupName.trim(),
-        content: '',
+        content: `Nhóm "${groupName.trim()}" đã được tạo!`,
         type: 'text',
         mediaUrl: groupAvatar, // Thêm avatar vào
       })
@@ -183,10 +183,13 @@ export default function CreateGroupModal({
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('http://localhost:5000/upload?type=avatar', {
-      method: 'POST',
-      body: formData,
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/upload?type=avatar`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
 
     const data = await res.json();
     const url = data.url;
@@ -299,7 +302,19 @@ export default function CreateGroupModal({
         <div className={styles.usersList}>
           <h4>Chọn thành viên ({selectedUsers.length})</h4>
           {isSearching ? (
-            <div className={styles.loadingText}>Đang tìm kiếm...</div>
+            <div>
+              {[...Array(4)].map((_, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                  <Skeleton.Avatar active size="large" shape="circle" style={{ marginRight: 12 }} />
+                  <Skeleton
+                    active
+                    title={false}
+                    paragraph={{ rows: 2, width: ['60%', '40%'] }}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              ))}
+            </div>
           ) : filteredUsers.length === 0 ? (
             <div className={styles.emptyText}>Không tìm thấy người dùng</div>
           ) : (

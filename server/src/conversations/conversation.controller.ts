@@ -10,11 +10,13 @@ import {
   Delete,
   Patch,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConversationService } from './conversation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from 'src/user/get-user.decorator';
 import { User } from 'src/user/user.schema';
+import { RestoreConversationDto } from './dto/restore-conversation.dto';
 
 @Controller('conversations')
 export class ConversationController {
@@ -30,9 +32,19 @@ export class ConversationController {
       receiverId: string | string[];
       isGroup?: boolean;
       groupName?: string;
+      content?: string;
+      type?: string;
+      mediaUrl?: string;
     },
   ) {
-    const { receiverId, isGroup = false, groupName = '' } = body;
+    const {
+      receiverId,
+      isGroup = false,
+      groupName = '',
+      content,
+      type = 'text',
+      mediaUrl = '',
+    } = body;
     const userId = req.user._id;
 
     return this.conversationService.createConversation(
@@ -40,6 +52,9 @@ export class ConversationController {
       receiverId,
       isGroup,
       groupName,
+      content,
+      type,
+      mediaUrl,
     );
   }
 
@@ -73,7 +88,7 @@ export class ConversationController {
     return this.conversationService.deleteConversation(id);
   }
 
-  // Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý)
+  // Xoá conversation phía 1 user
   @UseGuards(JwtAuthGuard)
   @Patch(':id/delete')
   async deleteConversationForUser(@Param('id') id: string, @Req() req) {
@@ -81,7 +96,7 @@ export class ConversationController {
     return this.conversationService.deleteConversationForUser(id, userId);
   }
 
-  // 🔐 Ẩn nhóm với tất cả thành viên (chỉ admin mới được)
+  // 🔐 Ẩn nhóm với tất cả thành viên
   @UseGuards(JwtAuthGuard)
   @Patch(':id/hide-group')
   async hideGroupFromAllMembers(@Param('id') id: string, @Req() req) {
@@ -139,5 +154,37 @@ export class ConversationController {
   async getGroupInfo(@Param('id') id: string, @Req() req) {
     const userId = req.user._id;
     return this.conversationService.getGroupInfo(id, userId);
+  }
+
+  // Phục hồi conversation (admin)
+  @UseGuards(JwtAuthGuard)
+  @Post('admin/restore')
+  async restoreConversation(
+    @GetUser() user: User,
+    @Body() body: RestoreConversationDto,
+  ) {
+    if (user.role !== 'admin') throw new ForbiddenException('No permission');
+    await this.conversationService.restoreConversation(body.conversationId);
+    return { message: 'Conversation restored successfully' };
+  }
+
+  // Tìm conversation theo name (admin)
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/search')
+  async adminSearchConversation(
+    @GetUser() user: User,
+    @Query('name') name: string,
+  ) {
+    if (user.role !== 'admin') throw new ForbiddenException('No permission');
+    if (!name) return [];
+    return this.conversationService.searchConversationsByName(name);
+  }
+
+  // Reset unreadCount cho conversation
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/read')
+  async markConversationAsRead(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.conversationService.resetUnreadCount(id, userId);
   }
 }

@@ -4,20 +4,190 @@
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   margin: 20px 10px;
   gap: 12px;
+  position: relative;
 
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
   // ===== Message Wrapper (Me/Other) =====
   .messageWrapper {
     display: flex;
     align-items: flex-end;
     gap: 8px;
+    position: relative;
+    max-width: 100%;
+
     &.me {
       flex-direction: row-reverse;
       margin-right: 10px;
       .message {
+        .messageList {
+          padding: 12px;
+          height: 100%;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+
+          // Ẩn scrollbar nhưng vẫn cuộn
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+          &::-webkit-scrollbar {
+            display: none;
+          }
+        }
+
+        .messageWrapper {
+          display: flex;
+          align-items: flex-end;
+          gap: 8px;
+          position: relative;
+          transition: all 0.2s ease;
+
+          &.me {
+            flex-direction: row-reverse;
+
+            .message {
+              background: #e6f7ff;
+              border-radius: 12px 0 12px 12px;
+              align-items: flex-end;
+            }
+          }
+
+          &.other {
+            .message {
+              background: #f5f5f5;
+              border-radius: 0 12px 12px 12px;
+            }
+          }
+
+          // Ẩn avatar + dính tin nhắn liên tiếp
+          & + &.me {
+            margin-top: -2px;
+          }
+          & + &.other {
+            margin-top: -2px;
+          }
+
+          &:hover .messageActions {
+            opacity: 1;
+            visibility: visible;
+          }
+        }
+
+        .avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          object-fit: cover;
+          cursor: pointer;
+        }
+
+        .message {
+          max-width: 70%;
+          padding: 8px 12px;
+          font-size: 15px;
+          line-height: 1.4;
+          word-break: break-word;
+          position: relative;
+          transition:
+            background 0.2s ease,
+            transform 0.2s ease;
+
+          // Animation khi thu hồi/xóa
+          &.updated {
+            background: #f0f0f0 !important;
+            transform: scale(0.98);
+          }
+        }
+
+        .senderName {
+          font-size: 12px;
+          font-weight: 500;
+          color: #888;
+          margin-bottom: 4px;
+        }
+
+        .content {
+          white-space: pre-line;
+        }
+
+        .recalledMessage,
+        .deletedMessage {
+          font-style: italic;
+          font-size: 14px;
+          display: block;
+          color: #999;
+        }
+
+        .deletedMessage {
+          color: #bfbfbf;
+        }
+
+        .fileBox {
+          background: #fafafa;
+          border: 1px solid #ddd;
+          padding: 6px;
+          border-radius: 8px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .fileIcon {
+          font-size: 12px;
+          font-weight: bold;
+          padding: 4px 6px;
+          background: #e6f7ff;
+          border-radius: 4px;
+        }
+
+        .fileName {
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .downloadBtn {
+          font-size: 18px;
+          text-decoration: none;
+        }
+
+        .time {
+          font-size: 11px;
+          color: #888;
+          margin-top: 2px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          justify-content: flex-end;
+        }
+
+        .seen {
+          font-size: 11px;
+          color: #1890ff;
+          display: flex;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .messageActions {
+          opacity: 0;
+          visibility: hidden;
+          position: absolute;
+          top: 0;
+          right: -24px;
+          transition: all 0.2s ease;
+          background: transparent;
+        }
+
         background-color: #e5f1ff;
         border-top-right-radius: 0;
       }
@@ -49,6 +219,7 @@
       font-size: 14px;
       line-height: 1.4;
       border-radius: 20px;
+      overflow: hidden;
 
       // ===== Sender Name (Group Chat) =====
       .senderName {
@@ -166,4 +337,33 @@
       }
     }
   }
+}
+
+.messageWrapper {
+  &:hover {
+    .messageActions {
+      opacity: 1;
+    }
+  }
+}
+
+.messageActions {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-left: 8px;
+  padding: 4px;
+  height: auto;
+  min-width: 24px;
+  position: relative;
+  z-index: 10;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.recalledMessage {
+  color: #999;
+  font-style: italic;
+  font-size: 14px;
 }

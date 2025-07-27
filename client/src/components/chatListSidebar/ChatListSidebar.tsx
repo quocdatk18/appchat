@@ -6,18 +6,22 @@ import {
   setSelectedConversation,
   setSelectedUser,
   deleteConversationForUser,
+  markConversationAsRead,
+  updateUnreadCount,
+  createConversation,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import {
   searchUserByEmail,
   setSelectedUser as setUserSelected,
 } from '@/lib/store/reducer/user/userSlice';
 import { UserType } from '@/types';
-import { SearchOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DeleteOutlined } from '@ant-design/icons';
 import { Input, List, Skeleton, Modal, message } from 'antd';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useDebounce } from '@/hooks/hookCustoms';
 import { useLoading } from '@/components/common';
+import { useSkeletonLoading } from '@/hooks/useSkeletonLoading';
 import styles from './ChatListSidebar.module.scss';
 import formatUpdatedAt from './format';
 
@@ -29,6 +33,16 @@ export default function ChatListSidebar() {
 
   // Sử dụng useLoading hook
   const { loading: isSearching, withLoading: withSearch } = useLoading();
+  const conversationLoading = useSelector((state: RootState) => state.conversationReducer.loading);
+  const conversationError = useSelector((state: RootState) => state.conversationReducer.error);
+
+  // Sử dụng skeleton loading hook
+  const { showSkeleton, handleRetry, hasError, errorMessage } = useSkeletonLoading({
+    loading: conversationLoading,
+    error: conversationError,
+    retryFn: () => dispatch(fetchConversations()),
+  });
+
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
@@ -54,7 +68,9 @@ export default function ChatListSidebar() {
         if (existing) {
           dispatch(setSelectedConversation(existing));
         } else {
-          dispatch(setUserSelected(user));
+          // Chỉ set selectedUser, không tạo conversation ngay
+          // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
+          dispatch(setSelectedConversation(null));
         }
       } else {
         dispatch(setSelectedUser(null));
@@ -82,6 +98,8 @@ export default function ChatListSidebar() {
       if (existing) {
         dispatch(setSelectedConversation(existing));
       } else {
+        // Chỉ set selectedUser, không tạo conversation ngay
+        // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
         dispatch(setSelectedConversation(null));
       }
     },
@@ -94,6 +112,19 @@ export default function ChatListSidebar() {
       if (conversation) {
         dispatch(setSelectedConversation(conversation));
 
+        // Reset unreadCount khi chọn conversation
+        dispatch(markConversationAsRead(id)).then(() => {
+          // Cập nhật Redux state để reset unreadCount ngay lập tức
+          dispatch(
+            updateUnreadCount({
+              conversationId: id,
+              userId: currentUser?._id || '',
+              count: 0,
+              increment: false, // Set = 0 thay vì tăng
+            })
+          );
+        });
+
         if (conversation.isGroup) {
           // Nhóm chat: không set selectedUser
           dispatch(setSelectedUser(null));
@@ -103,6 +134,9 @@ export default function ChatListSidebar() {
             _id: conversation.receiver._id || '',
             username: conversation.receiver.username || '',
             avatar: conversation.receiver.avatar || '',
+            nickname: conversation.receiver.nickname || '',
+            email: conversation.receiver.email || '',
+            gender: conversation.receiver.gender || '',
             online:
               typeof (conversation.receiver as any).online === 'boolean'
                 ? (conversation.receiver as any).online
@@ -112,7 +146,7 @@ export default function ChatListSidebar() {
         }
       }
     },
-    [dispatch, conversations]
+    [dispatch, conversations, currentUser]
   );
 
   const handleDeleteConversation = (conversationId: string) => {
@@ -141,10 +175,13 @@ export default function ChatListSidebar() {
   const isEmailSearch = useMemo(() => isEmail(searchText), [isEmail, searchText]);
 
   const listData = useMemo(() => {
-    if (isSearching) return [];
-    if (isEmailSearch) return selectedUser ? [selectedUser] : [];
-    if (searchText) return searchResults;
+    // Khi đang search, trả về kết quả search
+    if (searchText) {
+      if (isEmailSearch) return selectedUser ? [selectedUser] : [];
+      return searchResults;
+    }
 
+    // Khi không search, trả về conversations
     const userId = currentUser?._id || '';
     const filteredConversations = conversations.filter(
       (c) => !c.deletedBy || !c.deletedBy.includes(userId)
@@ -158,15 +195,7 @@ export default function ChatListSidebar() {
     });
 
     return sortedConversations;
-  }, [
-    isSearching,
-    isEmailSearch,
-    selectedUser,
-    searchText,
-    searchResults,
-    currentUser?._id,
-    conversations,
-  ]);
+  }, [searchText, isEmailSearch, selectedUser, searchResults, currentUser?._id, conversations]);
 
   return (
     <div className={styles.chatListSidebar}>
@@ -177,9 +206,13 @@ export default function ChatListSidebar() {
           onChange={(e) => handleSearchInput(e.target.value)}
           style={{ marginBottom: 16 }}
         />
-        {isSearching && (
+      </div>
+
+      <div className={styles.chatList}>
+        {/* Skeleton loading cho conversations */}
+        {showSkeleton && (
           <div>
-            {[...Array(4)].map((_, idx) => (
+            {[...Array(6)].map((_, idx) => (
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }} key={idx}>
                 <Skeleton.Avatar active size="large" shape="circle" style={{ marginRight: 12 }} />
                 <Skeleton
@@ -192,24 +225,29 @@ export default function ChatListSidebar() {
             ))}
           </div>
         )}
-      </div>
 
-      <div className={styles.chatList}>
-        {isSearching ? (
-          <div>
-            {[...Array(4)].map((_, idx) => (
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }} key={idx}>
-                <Skeleton.Avatar active size="large" shape="circle" style={{ marginRight: 12 }} />
-                <Skeleton
-                  active
-                  title={false}
-                  paragraph={{ rows: 2, width: ['60%', '40%'] }}
-                  style={{ flex: 1 }}
-                />
-              </div>
-            ))}
+        {/* Error state */}
+        {hasError && (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p style={{ color: '#ff4d4f', marginBottom: '10px' }}>{errorMessage}</p>
+            <button
+              onClick={handleRetry}
+              style={{
+                padding: '8px 16px',
+                background: '#1890ff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Thử lại
+            </button>
           </div>
-        ) : (
+        )}
+
+        {/* Normal content */}
+        {!showSkeleton && !hasError && (
           <>
             <List
               dataSource={listData}
@@ -261,13 +299,17 @@ export default function ChatListSidebar() {
                     className={`${styles.chatItem} ${selectedConversation?._id === item._id ? styles.active : ''}`}
                     onClick={() => handleSelect(item._id)}
                   >
-                    <div className={styles.avatarContainer}>
+                    <div
+                      className={styles.avatarContainer}
+                      style={{ position: 'relative', display: 'inline-block' }}
+                    >
                       <img
                         src={displayAvatar || '/avtDefault.png'}
                         alt="avatar"
                         className={styles.avatar}
+                        style={{ display: 'block' }}
                       />
-                      {/* Hiển thị trạng thái online cho chat 1-1 */}
+                      {/* Hiển thị trạng thái online cho 1-1 chat */}
                       {!item.isGroup &&
                         (() => {
                           const receiver = item.memberPreviews?.find(
@@ -275,10 +317,10 @@ export default function ChatListSidebar() {
                           );
                           const receiverId = receiver?._id;
                           const isOnline = receiverId ? userStatuses[receiverId]?.isOnline : false;
-
                           return (
-                            <div
+                            <span
                               className={`online-status small ${isOnline ? 'online' : 'offline'}`}
+                              style={{ position: 'absolute', bottom: 2, right: 2, zIndex: 2 }}
                             />
                           );
                         })()}
@@ -290,9 +332,11 @@ export default function ChatListSidebar() {
                               (memberId: string) =>
                                 memberId !== currentUser?._id && userStatuses[memberId]?.isOnline
                             ).length || 0;
-
                           return onlineCount > 0 ? (
-                            <div className="online-status small online" />
+                            <span
+                              className="online-status small online"
+                              style={{ position: 'absolute', bottom: 2, right: 2, zIndex: 2 }}
+                            />
                           ) : null;
                         })()}
                     </div>
@@ -323,6 +367,23 @@ export default function ChatListSidebar() {
                       <div className={styles.time}>
                         {item.updatedAt ? formatUpdatedAt(item.updatedAt) : ''}
                       </div>
+                      {/* Hiển thị số tin nhắn chưa đọc */}
+                      {(() => {
+                        let unreadCount = 0;
+                        if (item.unreadCount && currentUser?._id) {
+                          if (typeof item.unreadCount === 'object' && item.unreadCount !== null) {
+                            unreadCount = item.unreadCount[currentUser._id] || 0;
+                          }
+                        }
+
+                        const shouldShowBadge = unreadCount > 0;
+
+                        return shouldShowBadge ? (
+                          <div className={styles.unreadBadge}>
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </div>
+                        ) : null;
+                      })()}
                       <DeleteOutlined
                         className={styles.deleteIcon}
                         onClick={(e) => {
@@ -335,15 +396,6 @@ export default function ChatListSidebar() {
                 );
               }}
             />
-            {searchText && isEmailSearch && listData.length === 0 && (
-              <div className={styles.notFoundBlock}>
-                <div className={styles.notFoundIcon}>
-                  <SearchOutlined />
-                </div>
-                <div className={styles.notFoundTitle}>Không tìm thấy người dùng</div>
-                <div className={styles.notFoundDesc}>email chưa đăng ký tài khoản.</div>
-              </div>
-            )}
           </>
         )}
       </div>

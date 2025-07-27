@@ -38,12 +38,15 @@ const userStatusSlice = createSlice({
         }
       }
     },
+    clearAllUserStatus: (state) => {
+      state.statuses = {};
+    },
   },
   extraReducers: (builder) => {
     // Không cần extraReducers nữa vì chỉ dùng Socket
   },
 });
 
-export const { setUserOnlineStatus } = userStatusSlice.actions;
+export const { setUserOnlineStatus, clearAllUserStatus } = userStatusSlice.actions;
 const userStatusReducer = userStatusSlice.reducer;
 export default userStatusReducer;

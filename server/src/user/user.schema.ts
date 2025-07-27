@@ -28,6 +28,9 @@ export class User {
 
   @Prop({ type: Date, default: null })
   lastSeen: Date; // ➕ thêm dòng này để lưu thời gian offline
+
+  @Prop({ type: String, enum: ['admin', 'user'], default: 'user' })
+  role: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

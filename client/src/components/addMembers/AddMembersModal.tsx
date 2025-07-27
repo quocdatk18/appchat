@@ -15,6 +15,7 @@ interface AddMembersModalProps {
   onClose: () => void;
   conversationId: string;
   onSuccess?: () => void;
+  existingMemberIds?: string[]; // Thêm prop để truyền danh sách thành viên hiện tại
 }
 
 export default function AddMembersModal({
@@ -22,6 +23,7 @@ export default function AddMembersModal({
   onClose,
   conversationId,
   onSuccess,
+  existingMemberIds = [],
 }: AddMembersModalProps) {
   const dispatch = useDispatch<AppDispatch>();
 
@@ -50,6 +52,7 @@ export default function AddMembersModal({
       onClose={onClose}
       mode="add-members"
       onSuccess={handleCreateGroup}
+      existingMemberIds={existingMemberIds}
     />
   );
 }

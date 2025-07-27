@@ -38,10 +38,10 @@ export class Message {
   seenBy: string[]; // userId đã xem message này
 
   @Prop({ type: Boolean, default: false })
-  recalled: boolean; // true nếu đã thu hồi (ẩn cả 2 phía, sẽ xoá vật lý sau N phút)
+  recalled: boolean; // true nếu đã thu hồi
 
   @Prop({ type: Date, default: null })
-  recallAt: Date; // thời điểm thu hồi, dùng cho cron xoá vật lý
+  recallAt: Date; // thời điểm thu hồi
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

@@ -24,6 +24,7 @@ interface UserProfileModalProps {
   onSuccess?: () => void;
   user: UserProfile | null;
   isCurrentUser: boolean;
+  mode?: 'profile' | 'change-password';
 }
 
 export default function UserProfileModal({
@@ -32,8 +33,10 @@ export default function UserProfileModal({
   user,
   isCurrentUser,
   onSuccess,
+  mode = 'profile',
 }: UserProfileModalProps) {
   const [form] = Form.useForm();
+  const [changePasswordForm] = Form.useForm();
   const dispatch = useDispatch();
   const { loading: uploading, withLoading: withUpload } = useLoading();
   const reduxUser = useSelector((state: RootState) => state.userReducer.user);
@@ -53,10 +56,13 @@ export default function UserProfileModal({
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('http://localhost:5000/upload?type=avatar', {
-      method: 'POST',
-      body: formData,
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/upload?type=avatar`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
 
     const data = await res.json();
     const url = data.url;
@@ -123,6 +129,79 @@ export default function UserProfileModal({
       message.error('Cập nhật thông tin thất bại!');
     }
   };
+
+  // Thêm form đổi mật khẩu
+  const { withLoading: withChangePassword } = useLoading();
+  const handleChangePassword = withChangePassword(async (values: any) => {
+    try {
+      // Gọi redux thunk đổi mật khẩu ở đây
+      const result = await dispatch(
+        // @ts-ignore
+        require('@/lib/store/reducer/user/userSlice').changePassword({
+          currentPassword: values.currentPassword,
+          newPassword: values.newPassword,
+        })
+      );
+      if (result.meta.requestStatus === 'fulfilled') {
+        message.success('Đổi mật khẩu thành công!');
+        changePasswordForm.resetFields();
+        onClose();
+      } else {
+        message.error(result.payload || 'Đổi mật khẩu thất bại!');
+      }
+    } catch (error) {
+      message.error('Có lỗi xảy ra, vui lòng thử lại!');
+    }
+  });
+
+  if (mode === 'change-password') {
+    return (
+      <Modal open={open} onCancel={onClose} title="Đổi mật khẩu" footer={null} centered width={400}>
+        <Form form={changePasswordForm} layout="vertical" onFinish={handleChangePassword}>
+          <Form.Item
+            name="currentPassword"
+            label="Mật khẩu hiện tại"
+            rules={[{ required: true, message: 'Vui lòng nhập mật khẩu hiện tại!' }]}
+          >
+            <Input.Password placeholder="Nhập mật khẩu hiện tại" size="large" />
+          </Form.Item>
+          <Form.Item
+            name="newPassword"
+            label="Mật khẩu mới"
+            rules={[
+              { required: true, message: 'Vui lòng nhập mật khẩu mới!' },
+              { min: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự!' },
+            ]}
+          >
+            <Input.Password placeholder="Nhập mật khẩu mới" size="large" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="Xác nhận mật khẩu mới"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Vui lòng xác nhận mật khẩu mới!' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Mật khẩu xác nhận không khớp!'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Nhập lại mật khẩu mới" size="large" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" size="large" block>
+              Đổi mật khẩu
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+    );
+  }
   return (
     <Modal
       open={open}

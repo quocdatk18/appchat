@@ -22,6 +22,7 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
       const token = localStorage.getItem('token');
       const res = await axiosClient.get('/conversations', {
         headers: { authorization: `Bearer ${token}` },
+        timeout: 10000, // 10s timeout cho mạng yếu
       });
       // Map đúng dữ liệu trả về từ BE cho cả nhóm và 1-1
       const mappedConversations = res.data.map((item: any) => ({
@@ -37,10 +38,17 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
         lastMessageSenderId: item.lastMessageSenderId,
         updatedAt: item.updatedAt,
         deletedBy: item.deletedBy, // userId đã xoá conversation này (ẩn với họ)
+        unreadCount: item.unreadCount, // số tin nhắn chưa đọc
       }));
       return mappedConversations;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch conversations');
+      if (error.code === 'ECONNABORTED') {
+        return rejectWithValue('Kết nối mạng chậm, vui lòng thử lại');
+      }
+      if (!navigator.onLine) {
+        return rejectWithValue('Không có kết nối mạng');
+      }
+      return rejectWithValue(error.response?.data?.message || 'Không thể tải danh sách chat');
     }
   }
 );
@@ -93,7 +101,7 @@ export const searchConversation = createAsyncThunk(
   }
 );
 
-// --- Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý) ---
+// --- Xoá conversation phía 1 user (ẩn với họ, không bên nhận) ---
 export const deleteConversationForUser = createAsyncThunk<
   string, // trả về id conversation đã xoá
   string, // id conversation
@@ -155,6 +163,19 @@ export const removeMembersFromGroup = createAsyncThunk<
       return res.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Xóa thành viên thất bại');
+    }
+  }
+);
+
+// --- Đánh dấu conversation đã đọc ---
+export const markConversationAsRead = createAsyncThunk<any, string, { rejectValue: string }>(
+  'conversation/markConversationAsRead',
+  async (conversationId, { rejectWithValue }) => {
+    try {
+      const res = await axiosClient.patch(`/conversations/${conversationId}/read`);
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Đánh dấu đã đọc thất bại');
     }
   }
 );
@@ -227,6 +248,36 @@ const conversationSlice = createSlice({
         if (conversationIndex > 0) {
           const updatedConversation = state.conversations.splice(conversationIndex, 1)[0];
           state.conversations.unshift(updatedConversation);
+        }
+      }
+    },
+    // Cập nhật unreadCount realtime
+    updateUnreadCount(
+      state,
+      action: PayloadAction<{
+        conversationId: string;
+        userId: string;
+        count: number;
+        increment?: boolean; // true = tăng, false = set
+      }>
+    ) {
+      const conversationIndex = state.conversations.findIndex(
+        (c) => c._id === action.payload.conversationId
+      );
+      if (conversationIndex !== -1) {
+        const conversation = state.conversations[conversationIndex];
+        if (!conversation.unreadCount) {
+          conversation.unreadCount = {};
+        }
+
+        const currentCount = conversation.unreadCount[action.payload.userId] || 0;
+
+        if (action.payload.increment) {
+          // Tăng unreadCount
+          conversation.unreadCount[action.payload.userId] = currentCount + action.payload.count;
+        } else {
+          // Set unreadCount
+          conversation.unreadCount[action.payload.userId] = action.payload.count;
         }
       }
     },
@@ -339,6 +390,7 @@ export const {
   setSelectedConversation,
   setSelectedUser,
   updateLastMessage,
+  updateUnreadCount,
 } = conversationSlice.actions;
 
 export default conversationSlice.reducer;
