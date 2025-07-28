@@ -13,7 +13,6 @@ import {
 import { Dropdown, Image } from 'antd';
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRouter } from 'next/navigation';
 import ChatListSidebar from '../chatListSidebar/ChatListSidebar';
 import CreateGroupModal from '../createGroup/CreateGroupModal';
 import UserProfileModal from '../userProfile/UserProfileModal';
@@ -23,7 +22,6 @@ import styles from './Sidebar.module.scss';
 export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: UserType) => void }) {
   const user = useSelector((state: RootState) => state.userReducer.user);
   const dispach = useDispatch<AppDispatch>();
-  const router = useRouter();
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showCustomerServiceModal, setShowCustomerServiceModal] = useState(false);
@@ -31,14 +29,6 @@ export default function Sidebar({ onAvatarClick }: { onAvatarClick?: (user: User
   const handelLogout = () => {
     dispach(logout());
     dispach(clearAllUserStatus());
-  };
-
-  const handleMenuClick = ({ key }: { key: string }) => {
-    if (key === 'profile') {
-      router.push('/profile');
-    } else if (key === 'logout') {
-      handelLogout();
-    }
   };
 
   const items = [

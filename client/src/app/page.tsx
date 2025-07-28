@@ -8,7 +8,11 @@ import MessageList from '@/components/messageList/MessageList';
 import Sidebar from '@/components/slidebar/Sidebar';
 import UserProfileModal from '@/components/userProfile/UserProfileModal';
 import { checkAuth, loadUserFromStorage } from '@/lib/store/reducer/user/userSlice';
-import { updateUnreadCount } from '@/lib/store/reducer/conversationSlice/conversationSlice';
+import {
+  updateUnreadCount,
+  addConversation,
+  fetchConversations,
+} from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -24,10 +28,11 @@ export default function Home() {
     (state: RootState) => state.userReducer
   );
 
-  const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
+  const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
+
   const [currentOpenConversationId, setCurrentOpenConversationId] = useState<string | null>(null);
   useEffect(() => {
     dispatch(loadUserFromStorage());
@@ -60,6 +65,14 @@ export default function Home() {
     setCurrentOpenConversationId(selectedConversation?._id || null);
   }, [selectedConversation?._id]);
 
+  // Debug effect để theo dõi thay đổi state
+  useEffect(() => {
+    console.log('State changed:', {
+      selectedConversation: selectedConversation?._id,
+      selectedUser: selectedUser?._id,
+    });
+  }, [selectedConversation, selectedUser]);
+
   // Listener riêng cho unreadCount (không bị cleanup)
   useEffect(() => {
     if (!user?._id) return;
@@ -82,8 +95,26 @@ export default function Home() {
 
     socket.on('unread_count_updated', handleUnreadCountUpdate);
 
+    // Listener cho conversation mới được tạo
+    const handleNewConversation = (data: any) => {
+      if (data.conversation && user?._id) {
+        // Kiểm tra nếu user hiện tại là thành viên của conversation mới
+        const isMember = data.conversation.members.some(
+          (memberId: any) => memberId.toString() === user._id
+        );
+
+        if (isMember) {
+          // Fetch conversation đầy đủ từ server
+          dispatch(fetchConversations());
+        }
+      }
+    };
+
+    socket.on('new_conversation_created', handleNewConversation);
+
     return () => {
       socket.off('unread_count_updated', handleUnreadCountUpdate);
+      socket.off('new_conversation_created', handleNewConversation);
     };
   }, [user?._id, currentOpenConversationId, dispatch]);
 
@@ -91,6 +122,13 @@ export default function Home() {
     setProfileUser(user);
     setShowProfileModal(true);
   };
+
+  // Debug logs
+  console.log('Page render state:', {
+    selectedConversation: selectedConversation?._id,
+    selectedUser: selectedUser?._id,
+    showSlider: !selectedConversation && !selectedUser,
+  });
 
   return (
     <div className={styles.container}>

@@ -1,12 +1,18 @@
 import { updateUser } from '@/lib/store/reducer/user/userSlice';
 import { Gender } from '@/types';
-import { CameraOutlined } from '@ant-design/icons';
+import { CameraOutlined, PhoneOutlined, MessageOutlined } from '@ant-design/icons';
 import { Avatar, Button, Form, Input, Modal, Select, Upload, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '@/lib/store';
+import { RootState, AppDispatch } from '@/lib/store';
 import { Modal as AntdModal } from 'antd';
 import { LoadingButton, useLoading } from '@/components/common';
+import {
+  createConversation,
+  setSelectedConversation,
+  setSelectedUser,
+} from '@/lib/store/reducer/conversationSlice/conversationSlice';
+import { setSelectedUser as setUserSelected } from '@/lib/store/reducer/user/userSlice';
 
 export type UserProfile = {
   _id: string;
@@ -37,10 +43,15 @@ export default function UserProfileModal({
 }: UserProfileModalProps) {
   const [form] = Form.useForm();
   const [changePasswordForm] = Form.useForm();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { loading: uploading, withLoading: withUpload } = useLoading();
   const reduxUser = useSelector((state: RootState) => state.userReducer.user);
   const displayUser = isCurrentUser ? reduxUser : user;
+  const conversations = useSelector((state: RootState) => state.conversationReducer.conversations);
+  const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
+  const selectedConversation = useSelector(
+    (state: RootState) => state.conversationReducer.selectedConversation
+  );
 
   useEffect(() => {
     if (open && displayUser) {
@@ -154,6 +165,70 @@ export default function UserProfileModal({
     }
   });
 
+  // Hàm xử lý nút nhắn tin
+  const handleMessageUser = async () => {
+    if (!displayUser || !reduxUser) return;
+
+    console.log('handleMessageUser called', { displayUser, reduxUser });
+
+    try {
+      // Tìm conversation hiện có
+      const existingConversation = conversations.find(
+        (conv) =>
+          !conv.isGroup &&
+          (conv.receiver?._id === displayUser._id ||
+            conv.receiver?._id === displayUser._id.toString())
+      );
+
+      console.log('existingConversation', existingConversation);
+
+      if (existingConversation) {
+        // Nếu đã có conversation, chọn nó
+        console.log('Using existing conversation');
+        dispatch(setSelectedConversation(existingConversation));
+      } else {
+        // Tạo conversation mới bằng cách set selectedUser
+        console.log('Setting selectedUser for new conversation');
+        dispatch(
+          setSelectedUser({
+            ...displayUser,
+            online: false, // Default value
+          })
+        );
+        // Cũng set trong userSlice để đảm bảo
+        dispatch(
+          setUserSelected({
+            ...displayUser,
+            online: false,
+          })
+        );
+        // Clear selectedConversation để hiển thị chat với user mới
+        dispatch(setSelectedConversation(null));
+      }
+
+      // Debug log trước khi đóng modal
+      console.log('Before closing modal:', {
+        selectedUser: displayUser,
+        currentSelectedUser: selectedUser,
+        currentSelectedConversation: selectedConversation,
+      });
+
+      // Đóng modal profile ngay lập tức
+      onClose();
+
+      // Đợi một chút rồi đóng modal group info và hiển thị thông báo
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        }
+        message.success('Đã mở cuộc trò chuyện!');
+      }, 100);
+    } catch (error) {
+      console.error('handleMessageUser error', error);
+      message.error('Không thể tạo cuộc trò chuyện!');
+    }
+  };
+
   if (mode === 'change-password') {
     return (
       <Modal open={open} onCancel={onClose} title="Đổi mật khẩu" footer={null} centered width={400}>
@@ -256,9 +331,27 @@ export default function UserProfileModal({
             )}
           </div>
         </Upload>
-        <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>
           {displayUser?.nickname || displayUser?.username}
         </div>
+
+        {/* Action buttons */}
+        {!isCurrentUser && (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+            <Button icon={<PhoneOutlined />} size="large" style={{ flex: 1, height: 40 }}>
+              Gọi điện
+            </Button>
+            <Button
+              type="primary"
+              icon={<MessageOutlined />}
+              size="large"
+              style={{ flex: 1, height: 40 }}
+              onClick={handleMessageUser}
+            >
+              Nhắn tin
+            </Button>
+          </div>
+        )}
       </div>
       <Form
         form={form}

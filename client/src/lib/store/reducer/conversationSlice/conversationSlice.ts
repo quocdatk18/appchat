@@ -24,6 +24,7 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
         headers: { authorization: `Bearer ${token}` },
         timeout: 10000, // 10s timeout cho mạng yếu
       });
+
       // Map đúng dữ liệu trả về từ BE cho cả nhóm và 1-1
       const mappedConversations = res.data.map((item: any) => ({
         _id: item._id,
@@ -37,9 +38,16 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
         lastMessageType: item.lastMessageType,
         lastMessageSenderId: item.lastMessageSenderId,
         updatedAt: item.updatedAt,
-        deletedBy: item.deletedBy, // userId đã xoá conversation này (ẩn với họ)
-        unreadCount: item.unreadCount, // số tin nhắn chưa đọc
+        createdBy: item.createdBy,
+        isActive: item.isActive,
+        // UserConversation fields
+        isDeleted: item.isDeleted || false,
+        isPinned: item.isPinned || false,
+        isMuted: item.isMuted || false,
+        unreadCount: item.unreadCount || 0,
+        lastReadAt: item.lastReadAt,
       }));
+
       return mappedConversations;
     } catch (error: any) {
       if (error.code === 'ECONNABORTED') {
@@ -104,16 +112,21 @@ export const searchConversation = createAsyncThunk(
 // --- Xoá conversation phía 1 user (ẩn với họ, không bên nhận) ---
 export const deleteConversationForUser = createAsyncThunk<
   string, // trả về id conversation đã xoá
-  string, // id conversation
+  { conversationId: string; deleteMessages?: boolean }, // tham số
   { rejectValue: string }
->('conversation/deleteConversationForUser', async (conversationId, { rejectWithValue }) => {
-  try {
-    await axiosClient.patch(`/conversations/${conversationId}/delete`);
-    return conversationId;
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || 'Failed to delete conversation');
+>(
+  'conversation/deleteConversationForUser',
+  async ({ conversationId, deleteMessages = false }, { rejectWithValue }) => {
+    try {
+      await axiosClient.patch(`/conversations/${conversationId}/delete`, {
+        deleteMessages,
+      });
+      return conversationId;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete conversation');
+    }
   }
-});
+);
 
 // --- Thêm thành viên vào nhóm ---
 export const addMembersToGroup = createAsyncThunk<
@@ -225,6 +238,10 @@ const conversationSlice = createSlice({
     setSelectedUser(state, action: PayloadAction<UserType | null>) {
       state.selectedUser = action.payload;
     },
+    addNewConversation(state, action: PayloadAction<Conversation>) {
+      // Thêm conversation mới vào đầu list
+      state.conversations.unshift(action.payload);
+    },
     updateLastMessage(
       state,
       action: PayloadAction<{
@@ -256,7 +273,6 @@ const conversationSlice = createSlice({
       state,
       action: PayloadAction<{
         conversationId: string;
-        userId: string;
         count: number;
         increment?: boolean; // true = tăng, false = set
       }>
@@ -266,18 +282,14 @@ const conversationSlice = createSlice({
       );
       if (conversationIndex !== -1) {
         const conversation = state.conversations[conversationIndex];
-        if (!conversation.unreadCount) {
-          conversation.unreadCount = {};
-        }
-
-        const currentCount = conversation.unreadCount[action.payload.userId] || 0;
+        const currentCount = conversation.unreadCount || 0;
 
         if (action.payload.increment) {
           // Tăng unreadCount
-          conversation.unreadCount[action.payload.userId] = currentCount + action.payload.count;
+          conversation.unreadCount = currentCount + action.payload.count;
         } else {
           // Set unreadCount
-          conversation.unreadCount[action.payload.userId] = action.payload.count;
+          conversation.unreadCount = action.payload.count;
         }
       }
     },

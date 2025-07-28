@@ -7,6 +7,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Conversation, ConversationDocument } from './conversation.schema';
+import {
+  UserConversation,
+  UserConversationDocument,
+} from './user-conversation.schema';
 import { User, UserDocument } from 'src/user/user.schema';
 import { Message, MessageDocument } from 'src/message/message.schema';
 
@@ -15,9 +19,16 @@ export class ConversationService {
   constructor(
     @InjectModel(Conversation.name)
     private conversationModel: Model<ConversationDocument>,
+    @InjectModel(UserConversation.name)
+    private userConversationModel: Model<UserConversationDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
   ) {}
+
+  // Helper function để escape regex pattern
+  private escapeRegexPattern(pattern: string): string {
+    return pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   // 🧩 Tạo cuộc trò chuyện mới (1-1 hoặc nhóm)
   async createConversation(
@@ -34,12 +45,16 @@ export class ConversationService {
       const userObjId = new Types.ObjectId(userId);
       const receiverObjId = new Types.ObjectId(receiverId as string);
       // Kiểm tra nếu đã có cuộc trò chuyện 1-1 giữa 2 người (chỉ đúng 2 thành viên, không phải group)
+      // Chỉ dùng conversation mà sender chưa xóa
       const existing = await this.conversationModel.findOne({
         isGroup: false,
         members: { $all: [userObjId, receiverObjId] },
         $expr: { $eq: [{ $size: '$members' }, 2] },
       });
-      if (existing) return existing;
+
+      if (existing) {
+        return existing;
+      }
 
       // Chỉ tạo conversation khi có content hoặc mediaUrl
       if (!content && !mediaUrl) {
@@ -61,6 +76,28 @@ export class ConversationService {
         type,
         mediaUrl,
       });
+
+      // Cập nhật lastMessage cho conversation
+      await this.updateLastMessage(
+        (newConversation._id as any).toString(),
+        content || '',
+        type,
+        userId,
+      );
+
+      // Tạo UserConversation cho cả 2 user
+      await this.userConversationModel.create([
+        {
+          userId: userObjId,
+          conversationId: newConversation._id,
+          isDeleted: false,
+        },
+        {
+          userId: receiverObjId,
+          conversationId: newConversation._id,
+          isDeleted: false,
+        },
+      ]);
 
       return newConversation;
     }
@@ -101,20 +138,39 @@ export class ConversationService {
       mediaUrl,
     });
 
+    // Cập nhật lastMessage cho group conversation
+    await this.updateLastMessage(
+      (savedGroup._id as any).toString(),
+      content || '',
+      type,
+      userId,
+    );
+
+    // Tạo UserConversation cho tất cả thành viên nhóm
+    const userConversations = allMembers.map((memberId) => ({
+      userId: new Types.ObjectId(memberId),
+      conversationId: savedGroup._id,
+      isDeleted: false,
+    }));
+    await this.userConversationModel.create(userConversations);
+
     return savedGroup;
   }
 
   // Lấy danh sách các đoạn chat của user (sidebar, hỗ trợ cả nhóm)
   async getUserConversations(userId: string): Promise<any[]> {
+    // Lấy UserConversation để filter theo isDeleted
+    const userConversations = await this.userConversationModel.find({
+      userId: new Types.ObjectId(userId),
+      isDeleted: { $ne: true }, // Chỉ lấy conversation chưa bị xóa
+    });
+
+    const conversationIds = userConversations.map((uc) => uc.conversationId);
+
     const conversations = await this.conversationModel.aggregate([
       {
         $match: {
-          members: { $in: [new Types.ObjectId(userId)] },
-          // Loại bỏ conversations mà user đã xóa
-          $or: [
-            { deletedBy: { $exists: false } },
-            { deletedBy: { $nin: [userId] } },
-          ],
+          _id: { $in: conversationIds },
           // Loại bỏ nhóm đã bị ẩn với tất cả thành viên
           hiddenFromAll: { $ne: true },
         },
@@ -192,12 +248,33 @@ export class ConversationService {
           lastMessageType: '$lastMessageType',
           lastMessageSenderId: '$lastMessageSenderId',
           updatedAt: 1,
-          unreadCount: 1,
         },
       },
     ]);
 
-    return conversations;
+    // Lấy UserConversation data để merge
+    const userConversationData = await this.userConversationModel.find({
+      userId: new Types.ObjectId(userId),
+      conversationId: { $in: conversations.map((c) => c._id) },
+    });
+
+    // Merge UserConversation data vào conversations
+    const conversationsWithUserData = conversations.map((conversation) => {
+      const userConversation = userConversationData.find(
+        (uc) => uc.conversationId.toString() === conversation._id.toString(),
+      );
+
+      return {
+        ...conversation,
+        isDeleted: userConversation?.isDeleted || false,
+        isPinned: userConversation?.isPinned || false,
+        isMuted: userConversation?.isMuted || false,
+        unreadCount: userConversation?.unreadCount || 0,
+        lastReadAt: userConversation?.lastReadAt,
+      };
+    });
+
+    return conversationsWithUserData;
   }
 
   async findOneByMembers(userIds: string[]): Promise<any> {
@@ -205,6 +282,7 @@ export class ConversationService {
     const result = await this.conversationModel.findOne({
       isGroup: false,
       members: { $all: objIds, $size: 2 },
+      // Trả về cả conversation đã bị ẩn để kiểm tra isActive
     });
     return result;
   }
@@ -229,15 +307,32 @@ export class ConversationService {
   }
 
   // Xoá conversation phía 1 user (ẩn với họ, không xoá vật lý)
-  async deleteConversationForUser(conversationId: string, userId: string) {
-    return this.conversationModel.findByIdAndUpdate(
-      conversationId,
+  async deleteConversationForUser(
+    conversationId: string,
+    userId: string,
+    deleteMessages = false,
+  ) {
+    // Nếu deleteMessages = true, soft delete tất cả messages trong conversation
+    if (deleteMessages) {
+      await this.messageModel.updateMany(
+        { conversationId },
+        { $addToSet: { deletedBy: userId } },
+      );
+    }
+
+    // Cập nhật UserConversation để đánh dấu user đã xóa conversation
+    await this.userConversationModel.findOneAndUpdate(
+      { userId, conversationId },
       {
-        $addToSet: { deletedBy: userId },
-        $pull: { members: userId }, // Xóa user khỏi members để không nhận tin nhắn nữa
+        $set: {
+          isDeleted: true,
+          lastDeletedAt: new Date(),
+        },
       },
-      { new: true },
+      { upsert: true, new: true },
     );
+
+    return { success: true };
   }
 
   // Ẩn nhóm với tất cả thành viên (soft delete - chỉ admin mới được)
@@ -277,8 +372,24 @@ export class ConversationService {
 
   // Tìm kiếm hội thoại theo tên hoặc username thành viên
   async searchConversation(userId: string, query: string): Promise<any[]> {
+    const escapedQuery = this.escapeRegexPattern(query);
+
+    // Lấy UserConversation để filter theo isDeleted
+    const userConversations = await this.userConversationModel.find({
+      userId: new Types.ObjectId(userId),
+      isDeleted: { $ne: true }, // Chỉ lấy conversation chưa bị xóa
+    });
+
+    const conversationIds = userConversations.map((uc) => uc.conversationId);
+
     const conversations = await this.conversationModel.aggregate([
-      { $match: { members: { $in: [new Types.ObjectId(userId)] } } },
+      {
+        $match: {
+          _id: { $in: conversationIds },
+          // Loại bỏ nhóm đã bị ẩn với tất cả thành viên
+          hiddenFromAll: { $ne: true },
+        },
+      },
       {
         $lookup: {
           from: 'users',
@@ -303,8 +414,10 @@ export class ConversationService {
       {
         $match: {
           $or: [
-            { name: { $regex: query, $options: 'i' } },
-            { 'otherMembers.username': { $regex: query, $options: 'i' } },
+            { name: { $regex: escapedQuery, $options: 'i' } },
+            {
+              'otherMembers.username': { $regex: escapedQuery, $options: 'i' },
+            },
           ],
         },
       },
@@ -328,8 +441,9 @@ export class ConversationService {
   async searchConversationsByName(
     name: string,
   ): Promise<{ _id: string; name: string; createdBy: string | null }[]> {
+    const escapedName = this.escapeRegexPattern(name);
     const conversations = await this.conversationModel.find({
-      name: { $regex: name, $options: 'i' },
+      name: { $regex: escapedName, $options: 'i' },
     });
     return conversations.map((c) => ({
       _id: String(c._id),
@@ -364,34 +478,34 @@ export class ConversationService {
     const conversation = await this.conversationModel.findById(conversationId);
     if (!conversation) return;
 
-    const updateData: any = {};
-    conversation.members.forEach((memberId) => {
+    // Tăng unreadCount cho tất cả thành viên trừ sender
+    for (const memberId of conversation.members) {
       const memberIdStr = memberId.toString();
       if (memberIdStr !== senderId) {
-        const currentCount = conversation.unreadCount?.get(memberIdStr) || 0;
-        const newCount = currentCount + 1;
-        updateData[`unreadCount.${memberIdStr}`] = newCount;
+        await this.userConversationModel.findOneAndUpdate(
+          { userId: memberId, conversationId },
+          { $inc: { unreadCount: 1 } },
+          { upsert: true, new: true },
+        );
       }
-    });
-
-    const result = await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: updateData },
-      { new: true },
-    );
-
-    return result;
+    }
   }
 
   // Reset unreadCount cho một user
   async resetUnreadCount(conversationId: string, userId: string) {
-    const result = await this.conversationModel.findByIdAndUpdate(
-      conversationId,
-      { $set: { [`unreadCount.${userId}`]: 0 } },
-      { new: true },
+    return this.userConversationModel.findOneAndUpdate(
+      { userId, conversationId },
+      { $set: { unreadCount: 0, lastReadAt: new Date() } },
+      { upsert: true, new: true },
     );
+  }
 
-    return result;
+  // Method để MessageService có thể truy cập userConversation
+  async getUserConversation(userId: string, conversationId: string) {
+    return this.userConversationModel.findOne({
+      userId: new Types.ObjectId(userId),
+      conversationId: new Types.ObjectId(conversationId),
+    });
   }
 
   // Thêm thành viên vào nhóm
@@ -419,10 +533,21 @@ export class ConversationService {
       conversationId,
       {
         $addToSet: { members: { $each: newMembers } },
-        $pull: { deletedBy: { $in: memberIds } }, // Xóa khỏi deletedBy nếu có
       },
       { new: true },
     );
+
+    // Tạo UserConversation cho các thành viên mới
+    for (const memberId of memberIds) {
+      await this.userConversationModel.findOneAndUpdate(
+        {
+          userId: new Types.ObjectId(memberId),
+          conversationId: new Types.ObjectId(conversationId),
+        },
+        { $set: { isDeleted: false } }, // Đảm bảo không bị xóa
+        { upsert: true, new: true },
+      );
+    }
 
     return updatedConversation;
   }
@@ -480,10 +605,21 @@ export class ConversationService {
       conversationId,
       {
         $pull: { members: { $in: memberObjectIds } },
-        $addToSet: { deletedBy: { $each: memberIds } }, // Thêm vào deletedBy để ẩn với họ
       },
       { new: true },
     );
+
+    // Cập nhật UserConversation để đánh dấu các thành viên bị xóa
+    for (const memberId of memberIds) {
+      await this.userConversationModel.findOneAndUpdate(
+        {
+          userId: new Types.ObjectId(memberId),
+          conversationId: new Types.ObjectId(conversationId),
+        },
+        { $set: { isDeleted: true } },
+        { upsert: true, new: true },
+      );
+    }
 
     return updatedConversation;
   }

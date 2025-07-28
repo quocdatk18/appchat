@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { MongooseModule } from '@nestjs/mongoose';
-import { UserModule } from './user/user.module';
-import { MessageModule } from './message/message.module';
-import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module';
+import { ConversationModule } from './conversations/conversation.module';
+import { MessageModule } from './message/message.module';
+import { UploadModule } from './upload/upload.module';
+import { SocketModule } from './socket/socket.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import { ConversationModule } from './conversations/conversation.module';
-import { UploadModule } from './upload/upload.module';
-import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -25,10 +27,12 @@ import { AppController } from './app.controller';
     PassportModule,
     AuthModule,
     UserModule,
-    MessageModule,
     ConversationModule,
+    MessageModule,
     UploadModule,
+    SocketModule,
   ],
   controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

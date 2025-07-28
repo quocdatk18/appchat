@@ -333,6 +333,7 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
           // Kiểm tra đã được user nhận xem chưa (1-1)
           const isSeen =
             isLastMyMessage && msg.seenBy && msg.seenBy.some((uid) => uid !== currentUser._id);
+
           return (
             <div
               key={`${msg._id}-${msg.createdAt}`}
@@ -367,49 +368,74 @@ export default function MessageList({ onAvatarClick }: { onAvatarClick?: (user: 
                     msg.mimetype &&
                     !msg.mimetype.startsWith('image/') &&
                     !msg.mimetype.startsWith('video/') ? (
-                      <div className={styles.fileBox}>
-                        <div className={styles.fileInfo}>
-                          <div className={styles.fileIcon}>{getFileExtIcon(msg.originalName)}</div>
-                          <div className={styles.fileMeta}>
-                            <div className={styles.fileName}>{msg.originalName || 'Tải file'}</div>
+                      <div>
+                        <div className={styles.fileBox}>
+                          <div className={styles.fileInfo}>
+                            <div className={styles.fileIcon}>
+                              {getFileExtIcon(msg.originalName)}
+                            </div>
+                            <div className={styles.fileMeta}>
+                              <div className={styles.fileName}>
+                                {msg.originalName || 'Tải file'}
+                              </div>
+                            </div>
                           </div>
+                          <a
+                            href={msg.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.downloadBtn}
+                          >
+                            ⬇
+                          </a>
                         </div>
-                        <a
-                          href={msg.mediaUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.downloadBtn}
-                        >
-                          ⬇
-                        </a>
+                        {msg.content && (
+                          <div className={styles.content} style={{ marginTop: 4 }}>
+                            {msg.content}
+                          </div>
+                        )}
                       </div>
                     ) : msg.mediaUrl && msg.mimetype && msg.mimetype.startsWith('image/') ? (
-                      <Image
-                        src={msg.mediaUrl}
-                        preview={{ mask: null }}
-                        style={{
-                          maxWidth: 220,
-                          borderRadius: 8,
-                          marginBottom: 4,
-                          display: 'block',
-                        }}
-                        onLoad={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                      />
+                      <div>
+                        <Image
+                          src={msg.mediaUrl}
+                          preview={{ mask: null }}
+                          style={{
+                            maxWidth: 220,
+                            borderRadius: 8,
+                            marginBottom: 4,
+                            display: 'block',
+                          }}
+                          onLoad={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                        />
+                        {msg.content && (
+                          <div className={styles.content} style={{ marginTop: 4 }}>
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
                     ) : msg.mediaUrl && msg.mimetype && msg.mimetype.startsWith('video/') ? (
-                      <video
-                        src={msg.mediaUrl}
-                        controls
-                        style={{
-                          maxWidth: 220,
-                          borderRadius: 8,
-                          marginBottom: 4,
-                          display: 'block',
-                          background: '#000',
-                        }}
-                        onLoadedData={() =>
-                          bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-                        }
-                      />
+                      <div>
+                        <video
+                          src={msg.mediaUrl}
+                          controls
+                          style={{
+                            maxWidth: 220,
+                            borderRadius: 8,
+                            marginBottom: 4,
+                            display: 'block',
+                            background: '#000',
+                          }}
+                          onLoadedData={() =>
+                            bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+                          }
+                        />
+                        {msg.content && (
+                          <div className={styles.content} style={{ marginTop: 4 }}>
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className={styles.content}>{msg.content}</div>
                     )}

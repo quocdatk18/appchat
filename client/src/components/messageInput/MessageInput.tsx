@@ -10,7 +10,7 @@ import {
   SendOutlined,
   SmileOutlined,
 } from '@ant-design/icons';
-import { Button, Form, Input, Upload, Modal, message } from 'antd';
+import { Button, Form, Input, Upload, Modal, message, Spin } from 'antd';
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styles from './MessageInput.module.scss';
@@ -18,10 +18,11 @@ import styles from './MessageInput.module.scss';
 import {
   createConversation,
   setSelectedConversation,
-  setSelectedUser,
   updateUnreadCount,
+  fetchConversations,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import { addMessage } from '@/lib/store/reducer/message/MessageSlice';
+import { setSelectedUser as setUserSelected } from '@/lib/store/reducer/user/userSlice';
 
 const allowedExts = [
   'jpg',
@@ -49,13 +50,35 @@ export default function MessageInput() {
   const [input, setInput] = useState('');
   const [pastedImages, setPastedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const dispatch = useDispatch<AppDispatch>();
 
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
   const currentUser = useSelector((state: RootState) => state.userReducer.user);
-  const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
+  const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
+
+  // Debug logs
+  console.log('MessageInput - selectedConversation:', selectedConversation);
+  console.log('MessageInput - selectedUser:', selectedUser);
+
+  // Xác định placeholder text
+  const getPlaceholderText = () => {
+    if (selectedConversation) {
+      if (selectedConversation.isGroup) {
+        return `Nhập tin nhắn cho nhóm ${selectedConversation.name || ''}...`;
+      } else {
+        const receiver = selectedConversation.receiver;
+        const receiverName = receiver?.nickname || receiver?.username || '';
+        return `Nhập tin nhắn cho ${receiverName}...`;
+      }
+    } else if (selectedUser) {
+      const userName = selectedUser.nickname || selectedUser.username || '';
+      return `Nhập tin nhắn cho ${userName}...`;
+    }
+    return 'Chọn một cuộc trò chuyện để bắt đầu nhắn tin...';
+  };
 
   const sendMessageToConversation = (
     conversationId: string,
@@ -77,8 +100,16 @@ export default function MessageInput() {
   };
 
   // Hàm chung để upload file và gửi message
-  const uploadAndSendFile = async (file: File, type: 'image' | 'video' | 'file') => {
+  const uploadAndSendFile = async (
+    file: File,
+    type: 'image' | 'video' | 'file',
+    caption?: string
+  ) => {
     if (!currentUser) return false;
+
+    // Thêm file vào danh sách đang upload
+    const fileId = `${file.name}-${Date.now()}`;
+    setUploadingFiles((prev) => new Set([...prev, fileId]));
 
     try {
       const formData = new FormData();
@@ -108,7 +139,7 @@ export default function MessageInput() {
           const resultAction = await dispatch(
             createConversation({
               receiverId: selectedUser._id,
-              content: '',
+              content: caption || '',
               type: type,
               mediaUrl: fileUrl,
             })
@@ -116,7 +147,7 @@ export default function MessageInput() {
           const newConversation = resultAction.payload as any;
           if (newConversation && newConversation._id) {
             dispatch(setSelectedConversation(newConversation));
-            dispatch(setSelectedUser(null));
+            dispatch(setUserSelected(null));
             // Không cần gửi lại vì message đã được tạo trong createConversation
           }
           return true;
@@ -136,7 +167,7 @@ export default function MessageInput() {
           fromUserId: currentUser?._id,
           receiverId: '', // Để trống cho nhóm chat
           conversationId: selectedConversation._id,
-          content: '',
+          content: caption || '',
           type: type,
           mediaUrl: fileUrl,
           mimetype: mimetype,
@@ -157,7 +188,7 @@ export default function MessageInput() {
           fromUserId: currentUser?._id,
           receiverId: receiverId,
           conversationId: selectedConversation._id,
-          content: '',
+          content: caption || '',
           type: type,
           mediaUrl: fileUrl,
           mimetype: mimetype,
@@ -169,6 +200,13 @@ export default function MessageInput() {
     } catch (error) {
       console.error('Upload error:', error);
       return false;
+    } finally {
+      // Xóa file khỏi danh sách đang upload
+      setUploadingFiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(fileId);
+        return newSet;
+      });
     }
   };
 
@@ -261,78 +299,128 @@ export default function MessageInput() {
 
   // Xử lý gửi tin nhắn (ảnh + text)
   const handleSend = async () => {
-    // Gửi từng ảnh một nếu có
-    for (let i = 0; i < pastedImages.length; i++) {
-      const file = pastedImages[i];
-      await uploadAndSendFile(file, 'image');
-    }
+    console.log('handleSend called');
+    console.log('selectedConversation:', selectedConversation);
+    console.log('selectedUser:', selectedUser);
+    console.log('input:', input.trim());
 
-    // Clear preview sau khi gửi
-    if (pastedImages.length > 0) {
-      setPastedImages([]);
-      setPreviewUrls([]);
-      setInput('');
+    const content = input.trim();
+    const hasImages = pastedImages.length > 0;
+    const hasText = content.length > 0;
+
+    // Nếu không có gì để gửi
+    if (!hasImages && !hasText) {
+      console.log('No content to send, returning');
       return;
     }
 
-    // Nếu chỉ có text
-    const content = input.trim();
-    if (!content || !currentUser) return;
+    // Gửi từng ảnh một nếu có
+    for (let i = 0; i < pastedImages.length; i++) {
+      const file = pastedImages[i];
+      // Gửi ảnh với caption (text) nếu có
+      await uploadAndSendFile(file, 'image', hasText ? content : undefined);
+    }
 
-    if (!selectedConversation && selectedUser) {
-      try {
-        const resultAction = await dispatch(
-          createConversation({
+    // Clear preview sau khi gửi ảnh
+    if (hasImages) {
+      setPastedImages([]);
+      setPreviewUrls([]);
+    }
+
+    // Gửi text riêng chỉ khi không có ảnh
+    if (hasText && !hasImages && currentUser) {
+      if (!selectedConversation && selectedUser) {
+        console.log('Creating new conversation with selectedUser:', selectedUser);
+        try {
+          console.log('Creating conversation with:', {
             receiverId: selectedUser._id,
             content,
             type: 'text',
             mediaUrl: '',
-          })
-        );
-        const newConversation = resultAction.payload as any;
-        if (newConversation && newConversation._id) {
-          dispatch(setSelectedConversation(newConversation));
-          dispatch(setSelectedUser(null));
-          // Không cần gửi lại vì message đã được tạo trong createConversation
+          });
+
+          const resultAction = await dispatch(
+            createConversation({
+              receiverId: selectedUser._id,
+              content,
+              type: 'text',
+              mediaUrl: '',
+            })
+          );
+
+          console.log('Result action:', resultAction);
+          const newConversation = resultAction.payload as any;
+          console.log('New conversation created:', newConversation);
+          if (newConversation && newConversation._id) {
+            dispatch(setSelectedConversation(newConversation));
+            // Không clear selectedUser để giữ thông tin user
+            // dispatch(setUserSelected(null));
+            // Không cần gửi lại vì message đã được tạo trong createConversation
+
+            // Fetch lại danh sách conversations để hiển thị conversation mới
+            dispatch(fetchConversations());
+          }
+          setInput('');
+          return;
+        } catch (err) {
+          console.error('Lỗi tạo conversation:', err);
+          setInput('');
+          return;
         }
-        setInput('');
+      }
+
+      if (!selectedConversation) {
+        console.log('No selectedConversation, returning');
         return;
-      } catch (err) {
-        console.error('Lỗi tạo conversation:', err);
-        setInput('');
-        return;
+      }
+
+      // Xử lý cho cả 1-1 và nhóm chat
+      if (selectedConversation.isGroup && selectedConversation.members) {
+        // Nhóm chat: gửi tin nhắn đến tất cả thành viên
+        // Không cần receiverId cụ thể, chỉ cần conversationId
+        socket.emit('send_message', {
+          fromUserId: currentUser._id,
+          receiverId: '', // Để trống cho nhóm chat
+          conversationId: selectedConversation._id,
+          content,
+        });
+      } else {
+        // 1-1 chat: logic cũ
+        let receiverId;
+        if (selectedConversation.receiver?._id) {
+          receiverId = selectedConversation.receiver._id;
+        } else if (selectedConversation.members) {
+          receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
+        }
+
+        if (!receiverId) return;
+        sendMessageToConversation(selectedConversation._id, receiverId, content);
       }
     }
 
-    if (!selectedConversation) return;
-
-    // Xử lý cho cả 1-1 và nhóm chat
-    if (selectedConversation.isGroup && selectedConversation.members) {
-      // Nhóm chat: gửi tin nhắn đến tất cả thành viên
-      // Không cần receiverId cụ thể, chỉ cần conversationId
-      socket.emit('send_message', {
-        fromUserId: currentUser._id,
-        receiverId: '', // Để trống cho nhóm chat
-        conversationId: selectedConversation._id,
-        content,
-      });
-    } else {
-      // 1-1 chat: logic cũ
-      let receiverId;
-      if (selectedConversation.receiver?._id) {
-        receiverId = selectedConversation.receiver._id;
-      } else if (selectedConversation.members) {
-        receiverId = selectedConversation.members.find((id) => id !== currentUser?._id);
-      }
-
-      if (!receiverId) return;
-      sendMessageToConversation(selectedConversation._id, receiverId, content);
-    }
+    // Clear input sau khi gửi xong
     setInput('');
   };
 
   return (
     <div className={styles.chatInput}>
+      {/* Hiển thị thông báo đang upload */}
+      {uploadingFiles.size > 0 && (
+        <div
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#e6f7ff',
+            border: '1px solid #91d5ff',
+            borderRadius: '4px',
+            marginBottom: '8px',
+            fontSize: '12px',
+            color: '#1890ff',
+          }}
+        >
+          <Spin size="small" style={{ marginRight: '8px' }} />
+          Đang tải lên {uploadingFiles.size} tệp...
+        </div>
+      )}
       <div className={styles.chatForm}>
         {/* Phần actions nằm trên */}
         <div className={styles.actions}>
@@ -354,7 +442,7 @@ export default function MessageInput() {
           <div className={styles.inputGroup}>
             <Form.Item className={styles.inputWrapper}>
               <Input.TextArea
-                placeholder="Nhập tin nhắn..."
+                placeholder={getPlaceholderText()}
                 variant="underlined"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -372,22 +460,45 @@ export default function MessageInput() {
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {previewUrls.map((url, idx) => (
                     <div key={idx} className={styles.previewWrapper}>
-                      <img
-                        src={url}
-                        alt=""
-                        style={{
-                          width: 80,
-                          height: 80,
-                          objectFit: 'cover',
-                          borderRadius: 8,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                          background: '#f5f5f5',
-                        }}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <img
+                          src={url}
+                          alt=""
+                          style={{
+                            width: 80,
+                            height: 80,
+                            objectFit: 'cover',
+                            borderRadius: 8,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            background: '#f5f5f5',
+                            opacity: uploadingFiles.size > 0 ? 0.6 : 1,
+                          }}
+                        />
+                        {uploadingFiles.size > 0 && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              background: 'rgba(0,0,0,0.7)',
+                              borderRadius: '50%',
+                              width: 32,
+                              height: 32,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Spin size="small" />
+                          </div>
+                        )}
+                      </div>
                       <button
                         className={styles.deleteIcon}
                         onClick={() => handleRemoveImage(idx)}
                         type="button"
+                        disabled={uploadingFiles.size > 0}
                       >
                         <DeleteOutlined />
                       </button>
@@ -406,8 +517,16 @@ export default function MessageInput() {
                   // xử lý like hoặc làm gì đó nếu cần
                 }
               }}
-              icon={input.trim() || pastedImages.length > 0 ? <SendOutlined /> : <LikeOutlined />}
-              disabled={!currentUser}
+              icon={
+                uploadingFiles.size > 0 ? (
+                  <Spin size="small" />
+                ) : input.trim() || pastedImages.length > 0 ? (
+                  <SendOutlined />
+                ) : (
+                  <LikeOutlined />
+                )
+              }
+              disabled={!currentUser || uploadingFiles.size > 0}
             />
           </div>
         </Form>

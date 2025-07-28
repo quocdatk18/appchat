@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { Checkbox, Form, Input, notification, Select, Modal, Button } from 'antd';
+import { useState, useEffect } from 'react';
+import { Checkbox, Form, Input, notification, Select, Modal, Button, Spin } from 'antd';
 import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons';
 import styles from './authForm.module.scss';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter, usePathname } from 'next/navigation';
 import { AppDispatch, RootState } from '@/lib/store';
-import { handleLogin, handleRegister, forgotPassword } from '@/lib/store/reducer/user/userSlice';
+import {
+  handleLogin,
+  handleRegister,
+  forgotPassword,
+  loadUserFromStorage,
+  checkAuth,
+} from '@/lib/store/reducer/user/userSlice';
 import { FieldType } from '@/types';
 import { LoadingButton, useLoading } from '@/components/common';
 import { useSkeletonLoading } from '@/hooks/useSkeletonLoading';
@@ -33,7 +39,22 @@ export default function AuthForm({ mode }: Props) {
 
   const checkLogin = pathname === '/login';
   const checkRegister = pathname === '/register';
-  const { loading, error, isAuthenticated } = useSelector((state: RootState) => state.userReducer);
+  const { loading, error, isAuthenticated, initialized } = useSelector(
+    (state: RootState) => state.userReducer
+  );
+
+  // Check authentication khi component mount
+  useEffect(() => {
+    dispatch(loadUserFromStorage());
+    dispatch(checkAuth());
+  }, [dispatch]);
+
+  // Redirect nếu đã đăng nhập
+  useEffect(() => {
+    if (initialized && isAuthenticated) {
+      router.push('/');
+    }
+  }, [initialized, isAuthenticated, router]);
 
   // Sử dụng skeleton loading hook
   const { showSkeleton, handleRetry, hasError, errorMessage } = useSkeletonLoading({
@@ -108,6 +129,15 @@ export default function AuthForm({ mode }: Props) {
     }
   };
 
+  // Hiển thị loading khi đang check authentication
+  if (!initialized) {
+    return (
+      <div className={styles.loginContainer}>
+        <Spin tip="Đang khởi tạo..." size="large" />
+      </div>
+    );
+  }
+
   return (
     <div className={styles.loginContainer}>
       <div className={`${styles.loginCard} ${showSkeleton ? styles.loading : ''}`}>
@@ -175,7 +205,18 @@ export default function AuthForm({ mode }: Props) {
           <div className={styles.inputField}>
             <Form.Item<FieldType>
               name="password"
-              rules={[{ required: true, message: 'Cần nhập mật khẩu!' }]}
+              rules={[
+                { required: true, message: 'Cần nhập mật khẩu!' },
+                ...(isLogin
+                  ? []
+                  : [
+                      { min: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự!' },
+                      {
+                        pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+                        message: 'Mật khẩu phải có chữ hoa, chữ thường và số!',
+                      },
+                    ]),
+              ]}
             >
               <Input.Password
                 className={`${styles.input} ${styles.passwordInput}`}
@@ -203,7 +244,18 @@ export default function AuthForm({ mode }: Props) {
             <div className={styles.inputField}>
               <Form.Item<FieldType>
                 name="confirmPassword"
-                rules={[{ required: true, message: 'Cần nhập lại mật khẩu!' }]}
+                dependencies={['password']}
+                rules={[
+                  { required: true, message: 'Cần nhập lại mật khẩu!' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('password') === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('Mật khẩu không khớp!'));
+                    },
+                  }),
+                ]}
               >
                 <Input.Password
                   className={`${styles.input} ${styles.passwordInput}`}

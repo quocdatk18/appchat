@@ -32,16 +32,15 @@
       flex: 1;
       max-height: 50vh;
       overflow-y: auto;
-      // border: 1px solid #f0f0f0;
       border-radius: 8px;
-      scroll-behavior: smooth; // Thêm hiệu ứng cuộn mượt
+      scroll-behavior: smooth;
 
-      /* Ẩn thanh cuộn mặc định (tùy chọn) */
-      -ms-overflow-style: none; /* IE & Edge */
-      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
       &::-webkit-scrollbar {
-        display: none; /* Chrome, Safari */
+        display: none;
       }
+
       .ant-list-item {
         padding: 8px 12px;
         transition: background 0.2s;

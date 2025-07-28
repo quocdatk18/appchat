@@ -23,8 +23,8 @@ export class Conversation {
   @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
   admins: Types.ObjectId[]; // Admin nhóm (nếu là group)
 
-  @Prop({ type: [String], default: [] })
-  deletedBy: string[]; // userId đã xoá conversation này (ẩn với họ, không xoá vật lý)
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean; // true: conversation đang hoạt động, false: đã bị xóa/ẩn (chỉ dùng cho group)
 
   @Prop({ type: Boolean, default: false })
   deleted: boolean;
@@ -37,9 +37,6 @@ export class Conversation {
 
   @Prop({ type: String, default: '' })
   lastMessageSenderId: string;
-
-  @Prop({ type: Map, of: Number, default: {} })
-  unreadCount: Map<string, number>; // userId -> số tin nhắn chưa đọc
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

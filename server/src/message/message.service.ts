@@ -150,9 +150,26 @@ export class MessageService {
     return messages;
   }
 
-  async getMessagesByConversationId(conversationId: string) {
+  async getMessagesByConversationId(conversationId: string, userId?: string) {
+    let query: any = { conversationId: new Types.ObjectId(conversationId) };
+
+    // Nếu có userId, check UserConversation để lấy lastDeletedAt
+    if (userId) {
+      const userConversation =
+        await this.conversationService.getUserConversation(
+          userId,
+          conversationId,
+        );
+
+      // Nếu user đã xóa conversation và có lastDeletedAt
+      if (userConversation?.isDeleted && userConversation?.lastDeletedAt) {
+        // Chỉ lấy tin nhắn từ sau thời điểm xóa
+        query.createdAt = { $gt: userConversation.lastDeletedAt };
+      }
+    }
+
     return this.messageModel
-      .find({ conversationId: new Types.ObjectId(conversationId) })
+      .find(query)
       .sort({ createdAt: 1 })
       .populate('senderId', 'username avatar gender nickname email');
   }

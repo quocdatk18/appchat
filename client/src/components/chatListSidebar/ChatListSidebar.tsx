@@ -4,7 +4,6 @@ import {
   fetchConversations,
   searchConversation,
   setSelectedConversation,
-  setSelectedUser,
   deleteConversationForUser,
   markConversationAsRead,
   updateUnreadCount,
@@ -67,13 +66,16 @@ export default function ChatListSidebar() {
         const existing = conversations.find((c) => c.receiver?._id === user._id);
         if (existing) {
           dispatch(setSelectedConversation(existing));
+          // Không clear selectedUser để giữ thông tin user
+          // dispatch(setUserSelected(null));
         } else {
-          // Chỉ set selectedUser, không tạo conversation ngay
-          // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
+          // Set selectedUser để có thể tạo conversation mới khi gửi tin nhắn
+          dispatch(setUserSelected(user));
           dispatch(setSelectedConversation(null));
         }
       } else {
-        dispatch(setSelectedUser(null));
+        dispatch(setUserSelected(null));
+        dispatch(setSelectedConversation(null));
       }
     } else {
       await dispatch(searchConversation(value));
@@ -93,13 +95,17 @@ export default function ChatListSidebar() {
 
   const handleSelectUser = useCallback(
     (user: UserType) => {
-      dispatch(setSelectedUser(user));
+      console.log('handleSelectUser called with:', user);
       const existing = conversations.find((c) => c.receiver?._id === user._id);
       if (existing) {
+        console.log('Found existing conversation:', existing);
         dispatch(setSelectedConversation(existing));
+        // Không clear selectedUser để giữ thông tin user
+        // dispatch(setUserSelected(null));
       } else {
-        // Chỉ set selectedUser, không tạo conversation ngay
-        // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
+        console.log('No existing conversation, setting selectedUser');
+        // Set selectedUser để có thể tạo conversation mới khi gửi tin nhắn
+        dispatch(setUserSelected(user));
         dispatch(setSelectedConversation(null));
       }
     },
@@ -118,7 +124,6 @@ export default function ChatListSidebar() {
           dispatch(
             updateUnreadCount({
               conversationId: id,
-              userId: currentUser?._id || '',
               count: 0,
               increment: false, // Set = 0 thay vì tăng
             })
@@ -127,7 +132,7 @@ export default function ChatListSidebar() {
 
         if (conversation.isGroup) {
           // Nhóm chat: không set selectedUser
-          dispatch(setSelectedUser(null));
+          dispatch(setUserSelected(null));
         } else if (conversation.receiver) {
           // 1-1 chat: set selectedUser
           const receiver: UserType = {
@@ -142,7 +147,7 @@ export default function ChatListSidebar() {
                 ? (conversation.receiver as any).online
                 : false,
           };
-          dispatch(setSelectedUser(receiver));
+          dispatch(setUserSelected(receiver));
         }
       }
     },
@@ -158,7 +163,12 @@ export default function ChatListSidebar() {
       cancelText: 'Huỷ',
       onOk: async () => {
         try {
-          await dispatch<any>(deleteConversationForUser(conversationId));
+          await dispatch<any>(
+            deleteConversationForUser({
+              conversationId,
+              deleteMessages: false, // Chỉ ẩn, không xóa thật
+            })
+          );
           message.success('Đã xoá hội thoại!');
         } catch {
           message.error('Xoá hội thoại thất bại!');
@@ -177,15 +187,15 @@ export default function ChatListSidebar() {
   const listData = useMemo(() => {
     // Khi đang search, trả về kết quả search
     if (searchText) {
-      if (isEmailSearch) return selectedUser ? [selectedUser] : [];
+      if (isEmailSearch) {
+        console.log('Email search, selectedUser:', selectedUser);
+        return selectedUser ? [selectedUser] : [];
+      }
       return searchResults;
     }
 
-    // Khi không search, trả về conversations
-    const userId = currentUser?._id || '';
-    const filteredConversations = conversations.filter(
-      (c) => !c.deletedBy || !c.deletedBy.includes(userId)
-    );
+    // Khi không search, trả về conversations (đã được filter theo isDeleted từ backend)
+    const filteredConversations = conversations.filter((c) => !c.isDeleted);
 
     // Sắp xếp theo updatedAt (tin nhắn mới nhất lên đầu)
     const sortedConversations = filteredConversations.sort((a, b) => {

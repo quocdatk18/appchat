@@ -91,9 +91,18 @@ export class ConversationController {
   // Xoá conversation phía 1 user
   @UseGuards(JwtAuthGuard)
   @Patch(':id/delete')
-  async deleteConversationForUser(@Param('id') id: string, @Req() req) {
+  async deleteConversationForUser(
+    @Param('id') id: string,
+    @Body() body: { deleteMessages?: boolean },
+    @Req() req,
+  ) {
     const userId = req.user._id;
-    return this.conversationService.deleteConversationForUser(id, userId);
+    const deleteMessages = body.deleteMessages || false;
+    return this.conversationService.deleteConversationForUser(
+      id,
+      userId,
+      deleteMessages,
+    );
   }
 
   // 🔐 Ẩn nhóm với tất cả thành viên

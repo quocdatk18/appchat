@@ -12,6 +12,11 @@ export class UserService {
 
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
+  // Helper function để escape regex pattern
+  private escapeRegexPattern(pattern: string): string {
+    return pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   async findByUsername(username: string): Promise<User | null> {
     return this.userModel.findOne({ username });
   }
@@ -48,20 +53,21 @@ export class UserService {
   }
 
   async searchUsers(query: string, currentUserId: string) {
+    const escapedQuery = this.escapeRegexPattern(query);
     return this.userModel.find(
       {
         $and: [
           {
             $or: [
-              { username: { $regex: query, $options: 'i' } },
-              { nickname: { $regex: query, $options: 'i' } },
-              { email: { $regex: query, $options: 'i' } },
+              { username: { $regex: escapedQuery, $options: 'i' } },
+              { nickname: { $regex: escapedQuery, $options: 'i' } },
+              { email: { $regex: escapedQuery, $options: 'i' } },
             ],
           },
-          { _id: { $ne: new Types.ObjectId(currentUserId) } }, // Ép về ObjectId
+          { _id: { $ne: new Types.ObjectId(currentUserId) } },
         ],
       },
-      'id username nickname avatar email',
+      { password: 0 },
     );
   }
 

@@ -64,9 +64,14 @@ export interface Conversation {
   lastMessageType?: string;
   lastMessageSenderId?: string;
   updatedAt?: string;
-  deletedBy?: string[]; // userId đã xoá conversation này (ẩn với họ)
   createdBy?: string; // userId người tạo nhóm
-  unreadCount?: { [userId: string]: number }; // số tin nhắn chưa đọc cho từng user
+  isActive?: boolean; // true: conversation đang hoạt động, false: đã bị xóa/ẩn (chỉ dùng cho group)
+  // UserConversation fields (sẽ được populate từ server)
+  isDeleted?: boolean; // User đã xóa conversation này
+  isPinned?: boolean; // User đã pin conversation này
+  isMuted?: boolean; // User đã mute conversation này
+  unreadCount?: number; // Số tin nhắn chưa đọc của user này
+  lastReadAt?: Date; // Thời điểm user đọc tin nhắn cuối cùng
 }
 
 export interface ConversationState {

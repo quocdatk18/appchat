@@ -38,6 +38,11 @@ export default function ChatHeader({ onAvatarClick }: { onAvatarClick?: (user: a
         displayUser = receiver;
         displayName = receiver.nickname || receiver.username;
         displayAvatar = receiver.avatar || '';
+      } else if (selectedUser) {
+        // Fallback: sử dụng selectedUser nếu receiver không có thông tin
+        displayUser = selectedUser;
+        displayName = selectedUser.nickname || selectedUser.username;
+        displayAvatar = selectedUser.avatar || '';
       }
     }
   } else if (selectedUser) {

@@ -226,6 +226,8 @@ const authSlice = createSlice({
       if (user) {
         state.user = JSON.parse(user);
       }
+      // Set initialized = true sau khi load từ storage
+      state.initialized = true;
     },
     setUser: (state, action: PayloadAction<AuthState['user']>) => {
       state.user = action.payload;

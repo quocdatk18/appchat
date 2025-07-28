@@ -6,22 +6,20 @@ import {
   hideGroupFromAllMembers,
   removeMembersFromGroup,
   updateGroup,
-  createConversation,
-  setSelectedConversation,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
-import { UserType } from '@/types';
+import { UserType, Gender } from '@/types';
 import {
   CameraOutlined,
   CrownOutlined,
   DeleteOutlined,
   UsergroupAddOutlined,
   UserOutlined,
-  MessageOutlined,
 } from '@ant-design/icons';
 import { Avatar, Button, List, message, Modal, Upload } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import AddMembersModal from '../addMembers/AddMembersModal';
+import UserProfileModal from '../userProfile/UserProfileModal';
 import styles from './GroupInfoModal.module.scss';
 
 interface GroupInfoModalProps {
@@ -41,6 +39,8 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [removingMembers, setRemovingMembers] = useState<string[]>([]);
   const [isLoadingGroupInfo, setIsLoadingGroupInfo] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileUser, setProfileUser] = useState<UserType | null>(null);
 
   const { loading: uploading, withLoading: withUpload } = useLoading();
   const { loading: deletingGroup, withLoading: withDeleteGroup } = useLoading();
@@ -147,26 +147,11 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
   });
 
   const userStatuses = useSelector((state: RootState) => state.userStatusReducer.statuses);
-  const conversations = useSelector((state: RootState) => state.conversationReducer.conversations);
 
-  // Hàm mở conversation với user
-  const handleMessageUser = (user: UserType) => {
-    // Tìm conversation hiện có
-    const existingConversation = conversations.find(
-      (conv) => !conv.isGroup && conv.receiver?._id === user._id
-    );
-
-    if (existingConversation) {
-      // Nếu đã có conversation, chọn nó
-      dispatch(setSelectedConversation(existingConversation));
-    } else {
-      // Chỉ set selectedUser, không tạo conversation ngay
-      // Conversation sẽ được tạo khi user thực sự gửi tin nhắn
-      dispatch(setSelectedConversation(null));
-    }
-
-    // Đóng modal
-    onClose();
+  // Hàm mở profile user
+  const handleAvatarClick = (user: UserType) => {
+    setProfileUser(user);
+    setShowProfileModal(true);
   };
 
   return (
@@ -288,19 +273,6 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                   <List.Item
                     key={member._id}
                     actions={[
-                      // Icon nhắn tin cho tất cả thành viên (trừ chính mình)
-                      member._id !== currentUser?._id && (
-                        <Button
-                          key="message"
-                          type="text"
-                          icon={<MessageOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMessageUser(member);
-                          }}
-                          title="Nhắn tin"
-                        />
-                      ),
                       // Icon xóa chỉ cho admin (trừ chính mình và admin)
                       isCreator &&
                         member._id !== currentUser?._id &&
@@ -324,7 +296,14 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                   >
                     <List.Item.Meta
                       avatar={
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div
+                          style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleAvatarClick(member)}
+                        >
                           <Avatar src={member.avatar} icon={<UserOutlined />} />
                           <span
                             className={`online-status ${isOnline ? 'online' : 'offline'} small`}
@@ -371,6 +350,28 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
         conversationId={conversationId}
         existingMemberIds={groupMembers.map((member) => member._id)}
       />
+
+      {/* Modal profile user */}
+      {profileUser && (
+        <UserProfileModal
+          open={showProfileModal}
+          onClose={() => {
+            setShowProfileModal(false);
+            setProfileUser(null);
+          }}
+          onSuccess={() => {
+            setShowProfileModal(false);
+            setProfileUser(null);
+            // Đóng modal group info khi chat được tạo
+            onClose();
+          }}
+          user={{
+            ...profileUser,
+            gender: profileUser.gender as Gender | undefined,
+          }}
+          isCurrentUser={profileUser._id === currentUser?._id}
+        />
+      )}
     </Modal>
   );
 }

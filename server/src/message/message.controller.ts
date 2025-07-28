@@ -50,8 +50,13 @@ export class MessageController {
   @Get('conversation/:conversationId')
   async getMessagesByConversationId(
     @Param('conversationId') conversationId: string,
+    @Req() req: Request,
   ) {
-    return this.messageService.getMessagesByConversationId(conversationId);
+    const userId = req.user?.['_id'];
+    return this.messageService.getMessagesByConversationId(
+      conversationId,
+      userId,
+    );
   }
 
   // Thu hồi message (ẩn cả 2 phía)

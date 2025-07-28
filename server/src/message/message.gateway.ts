@@ -207,6 +207,8 @@ export class MessageGateway
           fromUserId,
           receiverId,
         ]);
+
+        // Nếu không có conversation, tạo mới
         if (!conversation) {
           conversation = await this.conversationService.createConversation(
             fromUserId,
@@ -251,6 +253,26 @@ export class MessageGateway
 
       // Emit đến room theo conversationId (tất cả thành viên đều nhận)
       this.server.to(conversationId).emit('receive_message', fullPayload);
+
+      // Nếu conversation mới được tạo, emit thông báo cho tất cả thành viên
+      if (conversation.deletedBy && conversation.deletedBy.length === 0) {
+        // Emit conversation mới cho tất cả thành viên
+        conversation.members.forEach((memberId) => {
+          const memberIdStr =
+            typeof memberId === 'object' && memberId._id
+              ? memberId._id.toString()
+              : memberId.toString();
+
+          this.server.to(memberIdStr).emit('new_conversation_created', {
+            conversation: {
+              _id: conversation._id,
+              isGroup: conversation.isGroup,
+              members: conversation.members,
+              deletedBy: conversation.deletedBy,
+            },
+          });
+        });
+      }
 
       // Emit unreadCount update cho tất cả thành viên trừ sender
       conversation.members.forEach((memberId) => {

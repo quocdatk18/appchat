@@ -16,6 +16,7 @@ async function bootstrap() {
   // Serve static files
   const uploadsPath = join(process.cwd(), 'uploads');
   app.use('/uploads', express.static(uploadsPath));
+
   await app.listen(process.env.PORT ?? 5000);
 }
 bootstrap();
