@@ -31,12 +31,11 @@ export interface AuthState {
 export interface Message {
   _id: string;
   conversationId: string;
-  senderId: string;
+  senderId: UserType; // Thay đổi từ string thành UserType
   receiverId?: string; // chỉ có khi 1-1
   content: string;
   type?: string; // loại message: text, image, file, video
   createdAt: string;
-  sender?: Pick<UserType, '_id' | 'username' | 'avatar'>; // dùng cho chat nhóm hoặc FE cần
   mediaUrl?: string; // đường dẫn file
   mimetype?: string; // loại file thực tế (image/png, video/mp4, ...)
   originalName?: string; // tên file gốc
@@ -44,6 +43,9 @@ export interface Message {
   deletedBy?: string[]; // userId đã xoá message này (chỉ ẩn phía họ)
   recalled?: boolean; // true nếu đã thu hồi
   recallAt?: string; // thời điểm thu hồi
+  deletedForAll?: boolean; // true nếu đã xóa cho tất cả user
+  deletedForAllAt?: string; // thời điểm xóa cho tất cả
+  deletedForAllBy?: string; // userId của admin đã xóa
 }
 
 export interface MessageState {
@@ -65,13 +67,10 @@ export interface Conversation {
   lastMessageSenderId?: string;
   updatedAt?: string;
   createdBy?: string; // userId người tạo nhóm
-  isActive?: boolean; // true: conversation đang hoạt động, false: đã bị xóa/ẩn (chỉ dùng cho group)
-  // UserConversation fields (sẽ được populate từ server)
-  isDeleted?: boolean; // User đã xóa conversation này
-  isPinned?: boolean; // User đã pin conversation này
-  isMuted?: boolean; // User đã mute conversation này
-  unreadCount?: number; // Số tin nhắn chưa đọc của user này
-  lastReadAt?: Date; // Thời điểm user đọc tin nhắn cuối cùng
+  isActive?: boolean; // true: conversation đang hoạt động, false: đã bị xoá/ẩn (chỉ dùng cho group)
+  unreadCount?: { [userId: string]: number };
+  deletedAt?: { [userId: string]: string };
+  deactivatedAt?: string | null;
 }
 
 export interface ConversationState {

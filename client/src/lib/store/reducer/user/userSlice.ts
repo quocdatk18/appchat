@@ -58,9 +58,13 @@ export const handleRegister = createAsyncThunk(
 
 export const checkAuth = createAsyncThunk('auth/checkAuth', async (_, thunkAPI) => {
   try {
-    const { data } = await axiosClient.get('/auth/me');
-    // data là user object từ BE trả về
-    return data;
+    const token = localStorage.getItem('token');
+    if (token) {
+      const { data } = await axiosClient.get('/auth/me');
+      // data là user object từ BE trả về
+      return data;
+    }
+    return thunkAPI.rejectWithValue('Token hết hạn hoặc không hợp lệ');
   } catch (error: any) {
     // Nếu lỗi (token hết hạn, không hợp lệ)
     localStorage.removeItem('token');

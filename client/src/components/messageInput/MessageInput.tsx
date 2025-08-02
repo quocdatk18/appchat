@@ -23,6 +23,7 @@ import {
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import { addMessage } from '@/lib/store/reducer/message/MessageSlice';
 import { setSelectedUser as setUserSelected } from '@/lib/store/reducer/user/userSlice';
+import dayjs from 'dayjs';
 
 const allowedExts = [
   'jpg',
@@ -46,6 +47,11 @@ function isAllowedFile(file: File) {
   return ext !== undefined && allowedExts.includes(ext);
 }
 
+// Định nghĩa hàm formatDate nếu chưa có
+function formatDate(dateString: string) {
+  return dayjs(dateString).format('HH:mm DD/MM/YYYY');
+}
+
 export default function MessageInput() {
   const [input, setInput] = useState('');
   const [pastedImages, setPastedImages] = useState<File[]>([]);
@@ -58,10 +64,6 @@ export default function MessageInput() {
   );
   const currentUser = useSelector((state: RootState) => state.userReducer.user);
   const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
-
-  // Debug logs
-  console.log('MessageInput - selectedConversation:', selectedConversation);
-  console.log('MessageInput - selectedUser:', selectedUser);
 
   // Xác định placeholder text
   const getPlaceholderText = () => {
@@ -86,10 +88,6 @@ export default function MessageInput() {
     content: string
   ) => {
     if (!currentUser) return;
-
-    // TẠM THỜI TẮT tin nhắn tạm để tránh duplicate
-    // Tin nhắn sẽ được hiển thị khi nhận từ server
-
     // Emit qua socket
     socket.emit('send_message', {
       fromUserId: currentUser._id,
@@ -299,18 +297,12 @@ export default function MessageInput() {
 
   // Xử lý gửi tin nhắn (ảnh + text)
   const handleSend = async () => {
-    console.log('handleSend called');
-    console.log('selectedConversation:', selectedConversation);
-    console.log('selectedUser:', selectedUser);
-    console.log('input:', input.trim());
-
     const content = input.trim();
     const hasImages = pastedImages.length > 0;
     const hasText = content.length > 0;
 
     // Nếu không có gì để gửi
     if (!hasImages && !hasText) {
-      console.log('No content to send, returning');
       return;
     }
 
@@ -330,15 +322,7 @@ export default function MessageInput() {
     // Gửi text riêng chỉ khi không có ảnh
     if (hasText && !hasImages && currentUser) {
       if (!selectedConversation && selectedUser) {
-        console.log('Creating new conversation with selectedUser:', selectedUser);
         try {
-          console.log('Creating conversation with:', {
-            receiverId: selectedUser._id,
-            content,
-            type: 'text',
-            mediaUrl: '',
-          });
-
           const resultAction = await dispatch(
             createConversation({
               receiverId: selectedUser._id,
@@ -348,16 +332,9 @@ export default function MessageInput() {
             })
           );
 
-          console.log('Result action:', resultAction);
           const newConversation = resultAction.payload as any;
-          console.log('New conversation created:', newConversation);
           if (newConversation && newConversation._id) {
             dispatch(setSelectedConversation(newConversation));
-            // Không clear selectedUser để giữ thông tin user
-            // dispatch(setUserSelected(null));
-            // Không cần gửi lại vì message đã được tạo trong createConversation
-
-            // Fetch lại danh sách conversations để hiển thị conversation mới
             dispatch(fetchConversations());
           }
           setInput('');
@@ -370,7 +347,6 @@ export default function MessageInput() {
       }
 
       if (!selectedConversation) {
-        console.log('No selectedConversation, returning');
         return;
       }
 
@@ -425,7 +401,11 @@ export default function MessageInput() {
         {/* Phần actions nằm trên */}
         <div className={styles.actions}>
           <Upload beforeUpload={handleImageUpload} showUploadList={false} accept="image/*" multiple>
-            <Button type="text" icon={<PictureOutlined />} />
+            <Button
+              disabled={!!selectedConversation?.deactivatedAt}
+              type="text"
+              icon={<PictureOutlined />}
+            />
           </Upload>
           <Upload
             beforeUpload={handleFileUpload}
@@ -433,7 +413,11 @@ export default function MessageInput() {
             accept="*"
             multiple={false}
           >
-            <Button type="text" icon={<FileAddOutlined />} />
+            <Button
+              disabled={!!selectedConversation?.deactivatedAt}
+              type="text"
+              icon={<FileAddOutlined />}
+            />
           </Upload>
         </div>
 
@@ -442,7 +426,11 @@ export default function MessageInput() {
           <div className={styles.inputGroup}>
             <Form.Item className={styles.inputWrapper}>
               <Input.TextArea
-                placeholder={getPlaceholderText()}
+                placeholder={
+                  selectedConversation?.deactivatedAt
+                    ? `Nhóm đã giải tán từ ${formatDate(selectedConversation.deactivatedAt)}`
+                    : `Nhập tin nhắn cho nhóm ${selectedConversation?.name || ''}...`
+                }
                 variant="underlined"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -454,6 +442,7 @@ export default function MessageInput() {
                   }
                 }}
                 className={styles.input}
+                disabled={!!selectedConversation?.deactivatedAt}
               />
               {/* Hiển thị preview nhiều ảnh bên dưới ô input, mỗi ảnh có nút xoá riêng */}
               {previewUrls.length > 0 && (
@@ -526,7 +515,9 @@ export default function MessageInput() {
                   <LikeOutlined />
                 )
               }
-              disabled={!currentUser || uploadingFiles.size > 0}
+              disabled={
+                !currentUser || uploadingFiles.size > 0 || !!selectedConversation?.deactivatedAt
+              }
             />
           </div>
         </Form>

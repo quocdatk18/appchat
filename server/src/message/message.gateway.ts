@@ -132,10 +132,11 @@ export class MessageGateway
    * @param client - Socket client instance
    */
   @SubscribeMessage('join_conversation')
-  handleJoinConversation(
-    @MessageBody() conversationId: string,
+  async handleJoinConversation(
+    @MessageBody() payload: { conversationId: string; userId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    const { conversationId, userId } = payload;
     client.join(conversationId);
   }
 
@@ -226,12 +227,6 @@ export class MessageGateway
         { content, type, mediaUrl, mimetype, originalName },
       );
 
-      // Tăng unreadCount cho tất cả thành viên trừ sender
-      await this.conversationService.incrementUnreadCount(
-        conversationId,
-        fromUserId,
-      );
-
       // Populate thông tin sender để frontend có thể hiển thị tên
       const populatedMessage = await this.messageService.populateMessageSender(
         (newMessage as any)._id,
@@ -273,39 +268,8 @@ export class MessageGateway
           });
         });
       }
-
-      // Emit unreadCount update cho tất cả thành viên trừ sender
-      conversation.members.forEach((memberId) => {
-        // Đảm bảo memberId là string
-        const memberIdStr =
-          typeof memberId === 'object' && memberId._id
-            ? memberId._id.toString()
-            : memberId.toString();
-
-        if (memberIdStr !== fromUserId) {
-          this.server.to(memberIdStr).emit('unread_count_updated', {
-            conversationId,
-            userId: memberIdStr,
-            count: 1, // Chỉ tăng 1
-            increment: true, // Đánh dấu là tăng
-          });
-        }
-      });
     } catch (error) {
       console.error('Lỗi khi gửi tin nhắn:', error);
     }
-  }
-
-  @SubscribeMessage('seen_message')
-  async handleSeenMessage(
-    @MessageBody()
-    payload: { messageId: string; userId: string; conversationId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const { messageId, userId, conversationId } = payload;
-    // Cập nhật seenBy ở DB
-    await this.messageService.markMessageSeen(messageId, userId);
-    // Broadcast cho các thành viên khác trong conversation
-    this.server.to(conversationId).emit('message_seen', { messageId, userId });
   }
 }

@@ -49,19 +49,12 @@ export default function UserProfileModal({
   const displayUser = isCurrentUser ? reduxUser : user;
   const conversations = useSelector((state: RootState) => state.conversationReducer.conversations);
   const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
-  const selectedConversation = useSelector(
-    (state: RootState) => state.conversationReducer.selectedConversation
-  );
 
   useEffect(() => {
-    if (open && displayUser) {
+    if (open && displayUser && mode === 'profile') {
       form.setFieldsValue({ avatar: displayUser.avatar || '' });
     }
-  }, [open, displayUser?.avatar]);
-
-  // Khi mở modal, reset preview avatar
-  // (Có thể dùng useEffect nếu muốn reset khi user đổi)
-
+  }, [open, displayUser?.avatar, mode]);
   // Upload avatar function
   const uploadAvatar = withUpload(async (file: File) => {
     const formData = new FormData();
@@ -169,8 +162,6 @@ export default function UserProfileModal({
   const handleMessageUser = async () => {
     if (!displayUser || !reduxUser) return;
 
-    console.log('handleMessageUser called', { displayUser, reduxUser });
-
     try {
       // Tìm conversation hiện có
       const existingConversation = conversations.find(
@@ -180,15 +171,11 @@ export default function UserProfileModal({
             conv.receiver?._id === displayUser._id.toString())
       );
 
-      console.log('existingConversation', existingConversation);
-
       if (existingConversation) {
         // Nếu đã có conversation, chọn nó
-        console.log('Using existing conversation');
         dispatch(setSelectedConversation(existingConversation));
       } else {
         // Tạo conversation mới bằng cách set selectedUser
-        console.log('Setting selectedUser for new conversation');
         dispatch(
           setSelectedUser({
             ...displayUser,
@@ -205,13 +192,6 @@ export default function UserProfileModal({
         // Clear selectedConversation để hiển thị chat với user mới
         dispatch(setSelectedConversation(null));
       }
-
-      // Debug log trước khi đóng modal
-      console.log('Before closing modal:', {
-        selectedUser: displayUser,
-        currentSelectedUser: selectedUser,
-        currentSelectedConversation: selectedConversation,
-      });
 
       // Đóng modal profile ngay lập tức
       onClose();
@@ -375,7 +355,6 @@ export default function UserProfileModal({
         <Form.Item label="Email" name="email">
           <Input disabled />
         </Form.Item>
-        <Form.Item name="avatar" hidden />
         {isCurrentUser && (
           <Form.Item style={{ textAlign: 'center', marginTop: 24 }}>
             <Button type="primary" block loading={uploading} onClick={handleUpdateInfo}>

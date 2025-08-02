@@ -3,7 +3,7 @@ import { LoadingButton, LoadingOverlay, useLoading } from '@/components/common';
 import { AppDispatch, RootState } from '@/lib/store';
 import {
   getGroupInfo,
-  hideGroupFromAllMembers,
+  deactivateGroup,
   removeMembersFromGroup,
   updateGroup,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
@@ -103,26 +103,6 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     }
   };
 
-  const handleHideGroup = withDeleteGroup(async () => {
-    Modal.confirm({
-      title: 'Xoá nhóm',
-      content:
-        'Bạn có chắc chắn muốn xoá nhóm này? Nhóm sẽ bị xoá và bạn có thể gửi yêu cầu khôi phục trong 30 ngày.',
-      okText: 'Xoá nhóm',
-      cancelText: 'Hủy',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          await dispatch(hideGroupFromAllMembers(conversationId)).unwrap();
-          message.success('Đã ẩn nhóm với tất cả thành viên');
-          onClose();
-        } catch (error: any) {
-          message.error(error.message || 'Ẩn nhóm thất bại');
-        }
-      },
-    });
-  });
-
   const uploadAvatar = withUpload(async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -153,6 +133,26 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
     setProfileUser(user);
     setShowProfileModal(true);
   };
+
+  const handleDeactivateGroup = withDeleteGroup(async () => {
+    Modal.confirm({
+      title: 'Giải tán nhóm',
+      content:
+        'Bạn có chắc chắn muốn giải tán nhóm này? Nhóm sẽ bị ẩn khỏi danh sách và có thể gửi yêu cầu khôi phục trong 30 ngày.',
+      okText: 'Giải tán nhóm',
+      cancelText: 'Hủy',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await dispatch(deactivateGroup(conversationId)).unwrap();
+          message.success('Đã giải tán nhóm');
+          onClose();
+        } catch (error: any) {
+          message.error(error.message || 'Giải tán nhóm thất bại');
+        }
+      },
+    });
+  });
 
   return (
     <Modal
@@ -333,10 +333,10 @@ export default function GroupInfoModal({ visible, onClose, conversationId }: Gro
                 danger
                 icon={<DeleteOutlined />}
                 loading={deletingGroup}
-                onClick={handleHideGroup}
+                onClick={withDeleteGroup(handleDeactivateGroup)}
                 className={styles.deleteGroupBtn}
               >
-                Xoá nhóm
+                Giải tán nhóm
               </LoadingButton>
             </div>
           )}

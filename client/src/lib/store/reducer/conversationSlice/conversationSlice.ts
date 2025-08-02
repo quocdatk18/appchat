@@ -19,35 +19,15 @@ export const fetchConversations = createAsyncThunk<Conversation[], void, { rejec
   'conversation/fetchConversations',
   async (_, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axiosClient.get('/conversations', {
-        headers: { authorization: `Bearer ${token}` },
-        timeout: 10000, // 10s timeout cho mạng yếu
-      });
+      const res = await axiosClient.get('/conversations');
 
-      // Map đúng dữ liệu trả về từ BE cho cả nhóm và 1-1
       const mappedConversations = res.data.map((item: any) => ({
-        _id: item._id,
-        isGroup: item.isGroup,
-        name: item.name,
-        avatar: item.avatar,
-        receiver: item.isGroup ? undefined : item.receiver, // chỉ cho 1-1
-        members: item.members,
-        memberPreviews: item.memberPreviews, // cho nhóm
-        lastMessage: item.lastMessage,
-        lastMessageType: item.lastMessageType,
-        lastMessageSenderId: item.lastMessageSenderId,
-        updatedAt: item.updatedAt,
-        createdBy: item.createdBy,
-        isActive: item.isActive,
-        // UserConversation fields
-        isDeleted: item.isDeleted || false,
-        isPinned: item.isPinned || false,
-        isMuted: item.isMuted || false,
+        ...item,
+        receiver: item.isGroup ? undefined : item.receiver,
         unreadCount: item.unreadCount || 0,
-        lastReadAt: item.lastReadAt,
+        deletedAt: item.deletedAt && typeof item.deletedAt === 'object' ? item.deletedAt : {},
+        deactivatedAt: item.deactivatedAt ? String(item.deactivatedAt) : null,
       }));
-
       return mappedConversations;
     } catch (error: any) {
       if (error.code === 'ECONNABORTED') {
@@ -109,7 +89,7 @@ export const searchConversation = createAsyncThunk(
   }
 );
 
-// --- Xoá conversation phía 1 user (ẩn với họ, không bên nhận) ---
+// --- Xoá conversation phía 1 user
 export const deleteConversationForUser = createAsyncThunk<
   string, // trả về id conversation đã xoá
   { conversationId: string; deleteMessages?: boolean }, // tham số
@@ -207,19 +187,17 @@ export const getGroupInfo = createAsyncThunk<
   }
 });
 
-// --- Ẩn nhóm với tất cả thành viên (chỉ admin) ---
-export const hideGroupFromAllMembers = createAsyncThunk<
-  any,
-  string, // conversationId
-  { rejectValue: string }
->('conversation/hideGroupFromAllMembers', async (conversationId, { rejectWithValue }) => {
-  try {
-    const res = await axiosClient.patch(`/conversations/${conversationId}/hide-group`);
-    return res.data;
-  } catch (error: any) {
-    return rejectWithValue(error.response?.data?.message || 'Ẩn nhóm thất bại');
+export const deactivateGroup = createAsyncThunk(
+  'conversation/deactivateGroup',
+  async (conversationId: string, { rejectWithValue }) => {
+    try {
+      const res = await axiosClient.patch(`/conversations/${conversationId}/deactivate`);
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Không thể giải tán nhóm');
+    }
   }
-});
+);
 
 // ---- Slice ----
 const conversationSlice = createSlice({
@@ -273,8 +251,9 @@ const conversationSlice = createSlice({
       state,
       action: PayloadAction<{
         conversationId: string;
+        userId: string;
         count: number;
-        increment?: boolean; // true = tăng, false = set
+        increment?: boolean;
       }>
     ) {
       const conversationIndex = state.conversations.findIndex(
@@ -282,15 +261,23 @@ const conversationSlice = createSlice({
       );
       if (conversationIndex !== -1) {
         const conversation = state.conversations[conversationIndex];
-        const currentCount = conversation.unreadCount || 0;
-
-        if (action.payload.increment) {
-          // Tăng unreadCount
-          conversation.unreadCount = currentCount + action.payload.count;
-        } else {
-          // Set unreadCount
-          conversation.unreadCount = action.payload.count;
+        if (!conversation.unreadCount || typeof conversation.unreadCount !== 'object') {
+          conversation.unreadCount = {};
         }
+        const prev = conversation.unreadCount[action.payload.userId] || 0;
+        if (action.payload.increment) {
+          conversation.unreadCount[action.payload.userId] = prev + action.payload.count;
+        } else {
+          conversation.unreadCount[action.payload.userId] = action.payload.count;
+        }
+      }
+    },
+    updateConversationById(state, action: PayloadAction<Conversation>) {
+      const idx = state.conversations.findIndex((c) => c._id === action.payload._id);
+      if (idx !== -1) {
+        state.conversations[idx] = { ...state.conversations[idx], ...action.payload };
+      } else {
+        state.conversations.unshift(action.payload);
       }
     },
   },
@@ -386,11 +373,6 @@ const conversationSlice = createSlice({
       })
       .addCase(getGroupInfo.rejected, (state, action) => {
         // Xử lý lỗi nếu cần
-      })
-      .addCase(hideGroupFromAllMembers.fulfilled, (state, action) => {
-        // Ẩn conversation khỏi state khi admin ẩn nhóm
-        state.conversations = state.conversations.filter((c) => c._id !== action.meta.arg);
-        state.selectedConversation = null;
       });
   },
 });
@@ -403,6 +385,7 @@ export const {
   setSelectedUser,
   updateLastMessage,
   updateUnreadCount,
+  updateConversationById,
 } = conversationSlice.actions;
 
 export default conversationSlice.reducer;

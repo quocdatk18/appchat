@@ -7,9 +7,9 @@
   .sidebar {
     flex: 0 0 30%;
     height: 100%;
-    overflow: hidden;
     min-width: 0;
     max-width: 30%;
+    transition: transform 0.3s ease-in-out;
   }
 
   .chatPanel {
@@ -61,6 +61,43 @@
       height: auto;
       background-color: #ffffff;
       flex-shrink: 0;
+    }
+  }
+}
+@media screen and (max-width: 768px) {
+  .container {
+    .sidebar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      background: white;
+      transition: transform 0.3s ease-in-out;
+
+      /* Ẩn sidebar khi có conversation được chọn */
+      &.hidden {
+        transform: translateX(-100%);
+        display: none;
+      }
+    }
+
+    .chatPanel {
+      width: 100%;
+      height: 100%;
+      transition:
+        opacity 0.3s ease-in-out,
+        transform 0.3s ease-in-out;
+      opacity: 0;
+      transform: translateX(100%);
+
+      /* Hiện chat panel khi có conversation */
+      &.active {
+        opacity: 1;
+        transform: translateX(0);
+        display: flex !important;
+      }
     }
   }
 }

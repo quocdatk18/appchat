@@ -62,7 +62,7 @@ export class ConversationController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async getMyConversations(@Request() req) {
-    const userId = req.user._id; //
+    const userId: string = req.user._id.toString();
     return this.conversationService.getUserConversations(userId);
   }
 
@@ -91,26 +91,9 @@ export class ConversationController {
   // Xoá conversation phía 1 user
   @UseGuards(JwtAuthGuard)
   @Patch(':id/delete')
-  async deleteConversationForUser(
-    @Param('id') id: string,
-    @Body() body: { deleteMessages?: boolean },
-    @Req() req,
-  ) {
+  async deleteConversationForUser(@Param('id') id: string, @Req() req) {
     const userId = req.user._id;
-    const deleteMessages = body.deleteMessages || false;
-    return this.conversationService.deleteConversationForUser(
-      id,
-      userId,
-      deleteMessages,
-    );
-  }
-
-  // 🔐 Ẩn nhóm với tất cả thành viên
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id/hide-group')
-  async hideGroupFromAllMembers(@Param('id') id: string, @Req() req) {
-    const userId = req.user._id;
-    return this.conversationService.hideGroupFromAllMembers(id, userId);
+    return this.conversationService.deleteConversationForUser(id, userId);
   }
 
   // 🔐 Thêm thành viên vào nhóm
@@ -195,5 +178,19 @@ export class ConversationController {
   async markConversationAsRead(@Param('id') id: string, @Req() req) {
     const userId = req.user._id;
     return this.conversationService.resetUnreadCount(id, userId);
+  }
+
+  // Khôi phục conversation cho user (khi user nhắn tin lại)
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/restore-user')
+  async restoreConversationForUser(@Param('id') id: string, @Req() req) {
+    const userId = req.user._id;
+    return this.conversationService.restoreConversationForUser(id, userId);
+  }
+
+  @Patch(':id/deactivate')
+  @UseGuards(JwtAuthGuard)
+  async deactivateGroup(@Param('id') id: string, @GetUser() user: any) {
+    return this.conversationService.deactivateGroup(id, user._id);
   }
 }

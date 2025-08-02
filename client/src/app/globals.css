@@ -16,6 +16,24 @@ body {
 li {
   list-style-type: none;
 }
+
+/* ===== Disabled li styles ===== */
+li.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  user-select: none;
+}
+
+li.disabled:hover {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+li.disabled * {
+  pointer-events: none;
+}
+
 .ant-input,
 .ant-input-textarea,
 .ant-input-textarea textarea {

@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import * as mongoose from 'mongoose';
 
 export type MessageDocument = Message & Document;
 
@@ -42,6 +41,15 @@ export class Message {
 
   @Prop({ type: Date, default: null })
   recallAt: Date; // thời điểm thu hồi
+
+  @Prop({ type: Boolean, default: false })
+  deletedForAll: boolean; // true nếu đã xóa cho tất cả user
+
+  @Prop({ type: Date, default: null })
+  deletedForAllAt: Date; // thời điểm xóa cho tất cả
+
+  @Prop({ type: String, default: null })
+  deletedForAllBy: string; // userId của admin đã xóa
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

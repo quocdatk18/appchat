@@ -2,19 +2,28 @@ import LastSeenDisplay from '@/lib/format';
 import { AppDispatch, RootState } from '@/lib/store';
 import { getUserById } from '@/lib/store/reducer/user/userSlice';
 
-import { PhoneOutlined, VideoCameraOutlined } from '@ant-design/icons';
-import { Avatar, Button } from 'antd';
+import { PhoneOutlined, VideoCameraOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { Avatar, Button, notification } from 'antd';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import GroupInfoModal from '../groupInfo/GroupInfoModal';
 import styles from './ChatHeader.module.scss';
+import dayjs from 'dayjs';
 
-export default function ChatHeader({ onAvatarClick }: { onAvatarClick?: (user: any) => void }) {
+export default function ChatHeader({
+  onAvatarClick,
+  onBackClick,
+}: {
+  onAvatarClick?: (user: any) => void;
+  onBackClick?: () => void;
+}) {
   const dispatch = useDispatch<AppDispatch>();
-  const selectedUser = useSelector((state: RootState) => state.conversationReducer.selectedUser);
+  const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
+  const deactivatedAt = selectedConversation?.deactivatedAt;
+
   const currentUser = useSelector((state: RootState) => state.userReducer.user);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
 
@@ -67,17 +76,22 @@ export default function ChatHeader({ onAvatarClick }: { onAvatarClick?: (user: a
 
     return onlineCount;
   });
-
-  // Force re-render khi userStatus thay đổi
-  const userStatuses = useSelector((state: RootState) => state.userStatusReducer.statuses);
-
-  // Không cần fetch status nữa vì đã có Socket realtime
+  function formatDate(dateString: string) {
+    return dayjs(dateString).format('HH:mm DD/MM/YYYY');
+  }
 
   if (!selectedUser && !selectedConversation) return null;
 
   return (
     <div className={styles.chatHeader}>
       <div className={styles.left}>
+        {/* Nút Back cho mobile */}
+        <Button
+          icon={<ArrowLeftOutlined />}
+          type="text"
+          onClick={onBackClick}
+          className={styles.backButton}
+        />
         <div
           className={styles.avatarContainer}
           style={{ position: 'relative', display: 'inline-block' }}
@@ -87,7 +101,11 @@ export default function ChatHeader({ onAvatarClick }: { onAvatarClick?: (user: a
             size="large"
             onClick={async () => {
               if (isGroup) {
-                setShowGroupInfoModal(true);
+                deactivatedAt
+                  ? notification.warning({
+                      message: 'Nhóm đã giải tán từ ' + formatDate(deactivatedAt),
+                    })
+                  : setShowGroupInfoModal(true);
               } else if (onAvatarClick && displayUser) {
                 // Fetch đầy đủ thông tin user trước khi mở profile
                 try {

@@ -37,6 +37,15 @@ export class Conversation {
 
   @Prop({ type: String, default: '' })
   lastMessageSenderId: string;
+
+  @Prop({ type: Map, of: Number, default: {} })
+  unreadCount: Record<string, number>;
+
+  @Prop({ type: Object, default: {} })
+  deletedAt: Record<string, Date>;
+
+  @Prop({ type: Date, default: null })
+  deactivatedAt?: Date | null;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

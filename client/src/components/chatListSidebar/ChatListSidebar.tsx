@@ -8,6 +8,8 @@ import {
   markConversationAsRead,
   updateUnreadCount,
   createConversation,
+  updateConversationById,
+  addConversation,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
 import {
   searchUserByEmail,
@@ -23,8 +25,10 @@ import { useLoading } from '@/components/common';
 import { useSkeletonLoading } from '@/hooks/useSkeletonLoading';
 import styles from './ChatListSidebar.module.scss';
 import formatUpdatedAt from './format';
+import React from 'react';
+import socket from '@/api/socket';
 
-export default function ChatListSidebar() {
+const ChatListSidebar = React.memo(function ChatListSidebar() {
   const dispatch = useDispatch<AppDispatch>();
   const conversations = useSelector((state: RootState) => state.conversationReducer.conversations);
   const [searchText, setSearchText] = useState('');
@@ -41,20 +45,25 @@ export default function ChatListSidebar() {
     error: conversationError,
     retryFn: () => dispatch(fetchConversations()),
   });
-
   const selectedConversation = useSelector(
     (state: RootState) => state.conversationReducer.selectedConversation
   );
   const currentUser = useSelector((state: RootState) => state.userReducer.user);
-  const selectedUser = useSelector((state: RootState) => state.userReducer.selectedUser);
   const userStatuses = useSelector((state: RootState) => state.userStatusReducer.statuses);
+
+  const [searchUserResult, setSearchUserResult] = useState<UserType | null>(null);
+
+  const isEmail = useCallback((str: string) => /\S+@\S+\.\S+/.test(str), []);
+
+  const isEmailSearch = useMemo(() => {
+    return searchText && isEmail(searchText);
+  }, [searchText, isEmail]);
 
   const handleSearch = withSearch(async (value: string) => {
     if (!value.trim()) {
+      setSearchUserResult(null);
       return;
     }
-
-    const isEmail = (str: string) => /\S+@\S+\.\S+/.test(str);
 
     if (isEmail(value)) {
       const result = await dispatch(searchUserByEmail(value));
@@ -62,22 +71,9 @@ export default function ChatListSidebar() {
         typeof result.payload === 'object' && result.payload && '_id' in result.payload
           ? result.payload
           : null;
-      if (user) {
-        const existing = conversations.find((c) => c.receiver?._id === user._id);
-        if (existing) {
-          dispatch(setSelectedConversation(existing));
-          // Không clear selectedUser để giữ thông tin user
-          // dispatch(setUserSelected(null));
-        } else {
-          // Set selectedUser để có thể tạo conversation mới khi gửi tin nhắn
-          dispatch(setUserSelected(user));
-          dispatch(setSelectedConversation(null));
-        }
-      } else {
-        dispatch(setUserSelected(null));
-        dispatch(setSelectedConversation(null));
-      }
+      setSearchUserResult(user);
     } else {
+      setSearchUserResult(null);
       await dispatch(searchConversation(value));
     }
   });
@@ -95,15 +91,12 @@ export default function ChatListSidebar() {
 
   const handleSelectUser = useCallback(
     (user: UserType) => {
-      console.log('handleSelectUser called with:', user);
       const existing = conversations.find((c) => c.receiver?._id === user._id);
       if (existing) {
-        console.log('Found existing conversation:', existing);
         dispatch(setSelectedConversation(existing));
         // Không clear selectedUser để giữ thông tin user
         // dispatch(setUserSelected(null));
       } else {
-        console.log('No existing conversation, setting selectedUser');
         // Set selectedUser để có thể tạo conversation mới khi gửi tin nhắn
         dispatch(setUserSelected(user));
         dispatch(setSelectedConversation(null));
@@ -117,24 +110,22 @@ export default function ChatListSidebar() {
       const conversation = conversations.find((c) => c._id === id);
       if (conversation) {
         dispatch(setSelectedConversation(conversation));
-
         // Reset unreadCount khi chọn conversation
-        dispatch(markConversationAsRead(id)).then(() => {
-          // Cập nhật Redux state để reset unreadCount ngay lập tức
-          dispatch(
-            updateUnreadCount({
-              conversationId: id,
-              count: 0,
-              increment: false, // Set = 0 thay vì tăng
-            })
-          );
-        });
-
+        if (!conversation.deactivatedAt) {
+          dispatch(markConversationAsRead(id)).then(() => {
+            dispatch(
+              updateUnreadCount({
+                conversationId: id,
+                userId: currentUser?._id || '',
+                count: 0,
+                increment: false,
+              })
+            );
+          });
+        }
         if (conversation.isGroup) {
-          // Nhóm chat: không set selectedUser
           dispatch(setUserSelected(null));
         } else if (conversation.receiver) {
-          // 1-1 chat: set selectedUser
           const receiver: UserType = {
             _id: conversation.receiver._id || '',
             username: conversation.receiver.username || '',
@@ -177,35 +168,112 @@ export default function ChatListSidebar() {
     });
   };
 
-  useEffect(() => {
-    dispatch(fetchConversations());
-  }, [dispatch]);
-
-  const isEmail = useCallback((str: string) => /\S+@\S+\.\S+/.test(str), []);
-  const isEmailSearch = useMemo(() => isEmail(searchText), [isEmail, searchText]);
-
   const listData = useMemo(() => {
-    // Khi đang search, trả về kết quả search
     if (searchText) {
       if (isEmailSearch) {
-        console.log('Email search, selectedUser:', selectedUser);
-        return selectedUser ? [selectedUser] : [];
+        // Hiển thị kết quả search user từ searchUserResult
+        return searchUserResult ? [searchUserResult] : [];
       }
       return searchResults;
     }
+    const userId = currentUser?._id || '';
+    const filteredConversations = conversations.filter((c) => {
+      // Nếu user chưa xóa conversation, hiện
+      if (!c.deletedAt || !c.deletedAt[userId]) {
+        return true;
+      }
 
-    // Khi không search, trả về conversations (đã được filter theo isDeleted từ backend)
-    const filteredConversations = conversations.filter((c) => !c.isDeleted);
+      // Nếu là 1-1, chỉ ẩn nếu cả 2 user đều đã xóa
+      if (!c.isGroup && c.members) {
+        const allDeleted = c.members.every((m) => {
+          const memberId = typeof m === 'string' ? m : String(m);
+          return c.deletedAt && c.deletedAt[memberId];
+        });
+        if (allDeleted) {
+          return false;
+        }
+      }
 
-    // Sắp xếp theo updatedAt (tin nhắn mới nhất lên đầu)
+      // Nếu user đã xóa conversation, kiểm tra xem có tin nhắn mới không
+      const deletedAt = c.deletedAt[userId];
+      if (deletedAt && c.updatedAt) {
+        const deletedTime = new Date(deletedAt);
+        const updatedTime = new Date(c.updatedAt);
+        if (updatedTime > deletedTime) {
+          return true; // Hiện conversation có tin nhắn mới
+        }
+      }
+
+      // Nếu user đã xóa và không có tin nhắn mới -> ẩn
+      return false;
+    });
     const sortedConversations = filteredConversations.sort((a, b) => {
       const dateA = new Date(a.updatedAt || 0).getTime();
       const dateB = new Date(b.updatedAt || 0).getTime();
-      return dateB - dateA; // Giảm dần (mới nhất lên đầu)
+      return dateB - dateA;
     });
-
     return sortedConversations;
-  }, [searchText, isEmailSearch, selectedUser, searchResults, currentUser?._id, conversations]);
+  }, [searchText, isEmailSearch, searchUserResult, searchResults, currentUser?._id, conversations]);
+
+  React.useEffect(() => {
+    // Lắng nghe tin nhắn mới để update conversation
+    const handleReceiveMessage = (msg: any) => {
+      if (msg.conversationId && msg.lastMessage) {
+        const oldConv = conversations.find((c) => c._id === msg.conversationId);
+        if (!oldConv) return;
+
+        // Cập nhật conversation với thông tin mới
+        dispatch(
+          updateConversationById({
+            ...oldConv,
+            lastMessage: msg.content,
+            lastMessageType: msg.type,
+            lastMessageSenderId: msg.fromUserId,
+            updatedAt: msg.createdAt,
+          })
+        );
+
+        // Refresh conversation list nếu conversation đã bị xóa
+        if (oldConv.deletedAt && oldConv.deletedAt[currentUser?._id || '']) {
+          dispatch(fetchConversations());
+        }
+      }
+    };
+    // Lắng nghe cập nhật unreadCount
+    const handleUnreadCountUpdated = (data: any) => {
+      if (data.conversationId && typeof data.count === 'number') {
+        const oldConv = conversations.find((c) => c._id === data.conversationId);
+        if (!oldConv) return;
+        dispatch(
+          updateConversationById({
+            ...oldConv,
+            unreadCount: {
+              ...(oldConv.unreadCount &&
+              typeof oldConv.unreadCount === 'object' &&
+              !Array.isArray(oldConv.unreadCount)
+                ? oldConv.unreadCount
+                : {}),
+              [data.userId]: data.count,
+            },
+          })
+        );
+      }
+    };
+    // Lắng nghe conversation mới
+    const handleNewConversation = (data: any) => {
+      if (data.conversation && data.conversation._id) {
+        dispatch(addConversation(data.conversation));
+      }
+    };
+    socket.on('receive_message', handleReceiveMessage);
+    socket.on('unread_count_updated', handleUnreadCountUpdated);
+    socket.on('new_conversation_created', handleNewConversation);
+    return () => {
+      socket.off('receive_message', handleReceiveMessage);
+      socket.off('unread_count_updated', handleUnreadCountUpdated);
+      socket.off('new_conversation_created', handleNewConversation);
+    };
+  }, [dispatch, conversations]);
 
   return (
     <div className={styles.chatListSidebar}>
@@ -379,15 +447,20 @@ export default function ChatListSidebar() {
                       </div>
                       {/* Hiển thị số tin nhắn chưa đọc */}
                       {(() => {
+                        const userId = currentUser?._id || '';
+                        // Handle cả trường hợp unreadCount là number (cũ) và object/map (mới)
                         let unreadCount = 0;
-                        if (item.unreadCount && currentUser?._id) {
-                          if (typeof item.unreadCount === 'object' && item.unreadCount !== null) {
-                            unreadCount = item.unreadCount[currentUser._id] || 0;
-                          }
+                        if (typeof item.unreadCount === 'number') {
+                          // Trường hợp cũ: unreadCount là number
+                          unreadCount = item.unreadCount;
+                        } else if (item.unreadCount && typeof item.unreadCount === 'object') {
+                          // Trường hợp mới: unreadCount là object/map
+                          unreadCount =
+                            typeof item.unreadCount.get === 'function'
+                              ? item.unreadCount.get(userId) || 0
+                              : item.unreadCount[userId] || 0;
                         }
-
                         const shouldShowBadge = unreadCount > 0;
-
                         return shouldShowBadge ? (
                           <div className={styles.unreadBadge}>
                             {unreadCount > 99 ? '99+' : unreadCount}
@@ -411,4 +484,5 @@ export default function ChatListSidebar() {
       </div>
     </div>
   );
-}
+});
+export default ChatListSidebar;

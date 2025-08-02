@@ -32,8 +32,6 @@ export class MessageService {
     senderId: string,
     createMessageDto: CreateMessageDto,
   ): Promise<Message> {
-    // Hàm này giữ lại cho tương thích cũ, không dùng conversationId nữa
-    const { content = '', type = 'text', mediaUrl = '' } = createMessageDto;
     // Cần truyền conversationId trực tiếp ở hàm createWithConversationId
     throw new Error('Use createWithConversationId instead');
   }
@@ -56,6 +54,45 @@ export class MessageService {
       mimetype = '',
       originalName = '',
     } = messageData;
+
+    // Kiểm tra conversation có tồn tại và user có quyền gửi tin nhắn không
+    const conversation =
+      await this.conversationService.getConversationById(conversationId);
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+
+    // Kiểm tra user có trong conversation không
+    const isMember = conversation.members.some((member) => {
+      // Xử lý cả trường hợp member là ObjectId và User object (đã populate)
+      let memberId;
+      if (member._id) {
+        // Member là User object (đã populate)
+        memberId = member._id.toString();
+      } else {
+        // Member là ObjectId
+        memberId = member.toString();
+      }
+      return memberId === senderId;
+    });
+
+    if (!isMember) {
+      throw new Error('User is not a member of this conversation');
+    }
+
+    // Kiểm tra conversation có bị deactivated không
+    if (conversation.deactivatedAt) {
+      throw new Error('This conversation has been deactivated');
+    }
+
+    // Khôi phục conversation nếu sender đã xóa
+    if (conversation.deletedAt && conversation.deletedAt[senderId]) {
+      await this.conversationService.restoreConversationForUser(
+        conversationId,
+        senderId,
+      );
+    }
+
     const message = new this.messageModel({
       senderId: new Types.ObjectId(senderId),
       conversationId: new Types.ObjectId(conversationId),
@@ -66,18 +103,12 @@ export class MessageService {
       originalName,
     });
     const savedMessage = await message.save();
-
     // Chỉ cập nhật conversation với lastMessage mới nếu có content
     if (content.trim()) {
       await this.conversationService.updateLastMessage(
         conversationId,
         content,
         type,
-        senderId,
-      );
-      // Tăng unreadCount cho tất cả thành viên trừ sender
-      await this.conversationService.incrementUnreadCount(
-        conversationId,
         senderId,
       );
     }
@@ -151,23 +182,17 @@ export class MessageService {
   }
 
   async getMessagesByConversationId(conversationId: string, userId?: string) {
-    let query: any = { conversationId: new Types.ObjectId(conversationId) };
+    let query: any = {
+      conversationId: new Types.ObjectId(conversationId),
+      deletedForAll: { $ne: true }, // Không lấy tin nhắn đã bị xóa cho tất cả
+    };
 
-    // Nếu có userId, check UserConversation để lấy lastDeletedAt
     if (userId) {
-      const userConversation =
-        await this.conversationService.getUserConversation(
-          userId,
-          conversationId,
-        );
-
-      // Nếu user đã xóa conversation và có lastDeletedAt
-      if (userConversation?.isDeleted && userConversation?.lastDeletedAt) {
-        // Chỉ lấy tin nhắn từ sau thời điểm xóa
-        query.createdAt = { $gt: userConversation.lastDeletedAt };
-      }
+      const conversation =
+        await this.conversationService.getConversationById(conversationId);
+      const deletedAt = conversation?.deletedAt?.[userId];
+      if (deletedAt) query.createdAt = { $gt: deletedAt };
     }
-
     return this.messageModel
       .find(query)
       .sort({ createdAt: 1 })
@@ -178,41 +203,82 @@ export class MessageService {
     return this.conversationService.getUserConversations(userId);
   }
 
-  // Thu hồi message (ẩn cả 2 phía)
+  // Thu hồi message (ẩn cả 2 phía) - Đơn giản hóa
   async recallMessage(id: string, userId: string) {
     // Kiểm tra message có tồn tại không
     const message = await this.messageModel.findById(id);
     if (!message) {
-      throw new Error('Message not found');
-    }
-
-    // Kiểm tra người gửi
-    if (message.senderId.toString() !== userId) {
-      throw new Error('Only sender can recall message');
-    }
-
-    // Thiết lập thời gian được thu hồi
-    const messageTime = new Date((message as any).createdAt).getTime();
-    const currentTime = new Date().getTime();
-    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-    if (currentTime - messageTime > fiveMinutes) {
-      throw new Error('Cannot recall message after 5 minutes');
+      return {
+        success: false,
+        message: 'Message not found',
+        code: 'MESSAGE_NOT_FOUND',
+      };
     }
 
     // Kiểm tra đã thu hồi chưa
     if (message.recalled) {
-      throw new Error('Message already recalled');
+      return {
+        success: false,
+        message: 'Message already recalled',
+        code: 'MESSAGE_ALREADY_RECALLED',
+      };
+    }
+
+    // Kiểm tra thời gian thu hồi (30 ngày như Zalo/Facebook)
+    const messageTime = new Date((message as any).createdAt).getTime();
+    const currentTime = new Date().getTime();
+    const maxRecallTime = 30 * 24 * 60 * 60 * 1000; // 30 ngày
+
+    if (currentTime - messageTime > maxRecallTime) {
+      return {
+        success: false,
+        message: 'Cannot recall message older than 30 days',
+        code: 'RECALL_TIME_EXPIRED',
+      };
+    }
+
+    // Kiểm tra quyền thu hồi
+    const isSender = message.senderId.toString() === userId;
+
+    if (!isSender) {
+      // Nếu không phải người gửi, kiểm tra xem có phải admin trong nhóm không
+      const conversation = await this.conversationService.getConversationById(
+        message.conversationId.toString(),
+      );
+
+      if (!conversation || !conversation.isGroup) {
+        return {
+          success: false,
+          message: 'Only sender can recall message',
+          code: 'UNAUTHORIZED',
+        };
+      }
+
+      // Kiểm tra xem user có phải admin của nhóm không
+      const isAdmin = conversation.createdBy?.toString() === userId;
+      if (!isAdmin) {
+        return {
+          success: false,
+          message: 'Only admin can recall messages from others in group',
+          code: 'UNAUTHORIZED',
+        };
+      }
     }
 
     // Đánh dấu recalled, set recallAt = now
-    return this.messageModel
+    const updatedMessage = await this.messageModel
       .findByIdAndUpdate(
         id,
         { recalled: true, recallAt: new Date() },
         { new: true },
       )
       .populate('senderId', 'username avatar gender nickname email');
+
+    return {
+      success: true,
+      message: 'Message recalled successfully',
+      data: updatedMessage,
+    };
   }
 
   // Xoá message phía người gửi (chỉ ẩn phía họ)
@@ -224,6 +290,68 @@ export class MessageService {
         { new: true },
       )
       .populate('senderId', 'username avatar gender nickname email');
+  }
+
+  // Xóa message cho tất cả user (soft delete - chỉ admin mới có quyền)
+  async deleteMessageForAll(id: string, userId: string) {
+    // Kiểm tra message có tồn tại không
+    const message = await this.messageModel.findById(id);
+    if (!message) {
+      return {
+        success: false,
+        message: 'Message not found',
+        code: 'MESSAGE_NOT_FOUND',
+      };
+    }
+
+    // Kiểm tra xem có phải admin trong nhóm không
+    const conversation = await this.conversationService.getConversationById(
+      message.conversationId.toString(),
+    );
+    if (!conversation || !conversation.isGroup) {
+      return {
+        success: false,
+        message: 'Can only delete messages in group conversations',
+        code: 'NOT_GROUP_CONVERSATION',
+      };
+    }
+
+    const isAdmin = conversation.createdBy?.toString() === userId;
+    if (!isAdmin) {
+      return {
+        success: false,
+        message: 'Only admin can delete messages for all users',
+        code: 'UNAUTHORIZED',
+      };
+    }
+
+    // Kiểm tra đã xóa cho tất cả chưa
+    if (message.deletedForAll) {
+      return {
+        success: false,
+        message: 'Message already deleted for all users',
+        code: 'MESSAGE_ALREADY_DELETED_FOR_ALL',
+      };
+    }
+
+    // Soft delete cho tất cả user
+    const updatedMessage = await this.messageModel
+      .findByIdAndUpdate(
+        id,
+        {
+          deletedForAll: true,
+          deletedForAllAt: new Date(),
+          deletedForAllBy: userId,
+        },
+        { new: true },
+      )
+      .populate('senderId', 'username avatar gender nickname email');
+
+    return {
+      success: true,
+      message: 'Message deleted for all users',
+      data: updatedMessage,
+    };
   }
 
   // Đánh dấu message đã đọc (thêm userId vào seenBy)

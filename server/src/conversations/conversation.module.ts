@@ -3,10 +3,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConversationService } from './conversation.service';
 import { ConversationController } from './conversation.controller';
 import { Conversation, ConversationSchema } from './conversation.schema';
-import {
-  UserConversation,
-  UserConversationSchema,
-} from './user-conversation.schema';
 import { User, UserSchema } from 'src/user/user.schema';
 import { Message, MessageSchema } from 'src/message/message.schema';
 
@@ -14,7 +10,6 @@ import { Message, MessageSchema } from 'src/message/message.schema';
   imports: [
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
-      { name: UserConversation.name, schema: UserConversationSchema },
       { name: User.name, schema: UserSchema },
       { name: Message.name, schema: MessageSchema },
     ]),

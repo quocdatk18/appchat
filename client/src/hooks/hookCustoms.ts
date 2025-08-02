@@ -53,7 +53,7 @@ export const useSocketListener = () => {
     if (user?._id && conversations.length > 0) {
       // Join tất cả conversations
       conversations.forEach((conv) => {
-        socket.emit('join_conversation', conv._id);
+        socket.emit('join_conversation', { conversationId: conv._id, userId: user._id });
       });
     }
   }, [user, conversations]);
@@ -78,6 +78,7 @@ export const useSocketListener = () => {
      * - Kiểm tra trùng lặp để tránh duplicate
      * - Thêm vào store nếu đang chọn conversation
      * - Cập nhật lastMessage trong sidebar
+     * - Emit seen_message nếu user đang ở trong conversation này
      */
     const handleMessage = (data: Message) => {
       const exists = messagesRef.current.some(

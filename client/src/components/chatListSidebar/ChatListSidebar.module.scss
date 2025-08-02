@@ -14,6 +14,16 @@
     padding: 12px;
     background-color: #fff;
     border-bottom: 1px solid #e0e0e0;
+
+    /* Hiệu ứng cho search input */
+    :global(.ant-input-search) {
+      transition: all 0.3s ease-in-out;
+
+      &:focus-within {
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+      }
+    }
   }
 
   /* Danh sách hội thoại */
@@ -28,16 +38,19 @@
     align-items: center;
     padding: 12px 16px;
     cursor: pointer;
-    transition: background 0.2s ease;
+    transition: all 0.3s ease-in-out;
     border-bottom: 1px solid #f0f0f0;
     position: relative;
 
     &:hover {
       background: #e6f4ff;
+      transform: translateX(4px);
     }
 
     &.active {
       background: #e6f4ff;
+      transform: translateX(8px);
+      border-left: 3px solid #1890ff;
     }
 
     /* Avatar container */
@@ -52,6 +65,12 @@
         object-fit: cover;
         border: 2px solid #fff;
         background: #eee;
+        transition: all 0.3s ease-in-out;
+
+        &:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
       }
     }
 
@@ -229,3 +248,33 @@
 }
 
 /* Fix AntD list */
+
+/* Responsive cho mobile */
+@media screen and (max-width: 768px) {
+  .chatListSidebar {
+    .header {
+      padding: 8px 12px;
+    }
+
+    .chatItem {
+      padding: 10px 12px;
+
+      .avatarContainer {
+        .avatar {
+          width: 40px;
+          height: 40px;
+        }
+      }
+
+      .chatInfo {
+        .name {
+          font-size: 14px;
+        }
+
+        .message {
+          font-size: 12px;
+        }
+      }
+    }
+  }
+}

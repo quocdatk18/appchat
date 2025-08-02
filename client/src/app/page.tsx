@@ -12,7 +12,9 @@ import {
   updateUnreadCount,
   addConversation,
   fetchConversations,
+  setSelectedConversation,
 } from '@/lib/store/reducer/conversationSlice/conversationSlice';
+import { setSelectedUser } from '@/lib/store/reducer/user/userSlice';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -35,8 +37,13 @@ export default function Home() {
 
   const [currentOpenConversationId, setCurrentOpenConversationId] = useState<string | null>(null);
   useEffect(() => {
-    dispatch(loadUserFromStorage());
-    dispatch(checkAuth());
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+
+    if (token && user) {
+      dispatch(checkAuth());
+      dispatch(loadUserFromStorage());
+    }
   }, [dispatch]);
 
   useEffect(() => {
@@ -48,10 +55,26 @@ export default function Home() {
       socket.emit('user_connected', user._id);
       socket.connect();
 
+      // Fetch conversations khi user đã authenticated
+      dispatch(fetchConversations());
+
+      // Lắng nghe conversation mới
+      const handleNewConversation = (data: any) => {
+        if (data.conversation && user?._id) {
+          const isMember = data.conversation.members.some(
+            (memberId: any) => memberId.toString() === user._id
+          );
+          if (isMember) {
+            dispatch(fetchConversations());
+          }
+        }
+      };
+      socket.on('new_conversation_created', handleNewConversation);
+
       // Cleanup listeners chỉ khi component unmount hoặc user thay đổi
       return () => {
-        socket.off('receive_message');
         socket.off('unread_count_updated');
+        socket.off('new_conversation_created', handleNewConversation);
       };
     }
   }, [initialized, isAuthenticated, user, router, dispatch]);
@@ -65,35 +88,8 @@ export default function Home() {
     setCurrentOpenConversationId(selectedConversation?._id || null);
   }, [selectedConversation?._id]);
 
-  // Debug effect để theo dõi thay đổi state
-  useEffect(() => {
-    console.log('State changed:', {
-      selectedConversation: selectedConversation?._id,
-      selectedUser: selectedUser?._id,
-    });
-  }, [selectedConversation, selectedUser]);
-
-  // Listener riêng cho unreadCount (không bị cleanup)
   useEffect(() => {
     if (!user?._id) return;
-
-    const handleUnreadCountUpdate = (data: any) => {
-      if (data.userId === user._id) {
-        // Chỉ cập nhật nếu không đang ở trong conversation đó
-        if (data.conversationId !== currentOpenConversationId) {
-          dispatch(
-            updateUnreadCount({
-              conversationId: data.conversationId,
-              userId: data.userId,
-              count: data.count,
-              increment: data.increment || false,
-            })
-          );
-        }
-      }
-    };
-
-    socket.on('unread_count_updated', handleUnreadCountUpdate);
 
     // Listener cho conversation mới được tạo
     const handleNewConversation = (data: any) => {
@@ -113,29 +109,31 @@ export default function Home() {
     socket.on('new_conversation_created', handleNewConversation);
 
     return () => {
-      socket.off('unread_count_updated', handleUnreadCountUpdate);
       socket.off('new_conversation_created', handleNewConversation);
     };
-  }, [user?._id, currentOpenConversationId, dispatch]);
+  }, [user?._id, dispatch]);
 
   const handleAvatarClick = (user: UserType) => {
     setProfileUser(user);
     setShowProfileModal(true);
   };
 
-  // Debug logs
-  console.log('Page render state:', {
-    selectedConversation: selectedConversation?._id,
-    selectedUser: selectedUser?._id,
-    showSlider: !selectedConversation && !selectedUser,
-  });
+  // Kiểm tra có conversation được chọn không
+  const hasSelectedConversation = selectedConversation || selectedUser;
+
+  // Hàm quay lại sidebar
+  const handleBackClick = () => {
+    // Clear selected conversation và user
+    dispatch(setSelectedConversation(null));
+    dispatch(setSelectedUser(null));
+  };
 
   return (
     <div className={styles.container}>
-      <div className={styles.sidebar}>
+      <div className={`${styles.sidebar} ${hasSelectedConversation ? styles.hidden : ''}`}>
         <Sidebar onAvatarClick={handleAvatarClick} />
       </div>
-      <div className={styles.chatPanel}>
+      <div className={`${styles.chatPanel} ${hasSelectedConversation ? styles.active : ''}`}>
         {!selectedConversation && !selectedUser ? (
           <div className={styles.sliderWrapper}>
             <OnboardingSlider />
@@ -143,7 +141,7 @@ export default function Home() {
         ) : (
           <>
             <div className={styles.header}>
-              <ChatHeader onAvatarClick={handleAvatarClick} />
+              <ChatHeader onAvatarClick={handleAvatarClick} onBackClick={handleBackClick} />
             </div>
             <div className={styles.content}>
               <MessageList onAvatarClick={handleAvatarClick} />
